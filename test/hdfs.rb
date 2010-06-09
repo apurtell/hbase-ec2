@@ -29,6 +29,10 @@ class Cluster
     @@clusters
   end
 
+  def Cluster.sync
+    #re-initialize class variables from Amazon source info.
+  end
+
   def Cluster.[](name) 
     @@clusters[name]
   end
