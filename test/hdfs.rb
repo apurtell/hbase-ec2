@@ -66,7 +66,7 @@ class Cluster
 
     else
       #child
-      exec("~/hbase-ec2/bin/hbase-ec2 terminate-cluster #{@name}")
+      exec("~/hbase-ec2/bin/hbase-ec2 terminate-cluster #{@name} noprompt")
     end
   end
 
