@@ -1,6 +1,9 @@
 #!/usr/bin/env ruby
 require 'AWS'
 
+class ClusterStateError < StandardError
+end
+
 class Cluster
   @@clusters = {}
   def initialize( name, options = {} )
@@ -55,6 +58,8 @@ class Cluster
   end
 
   def run_test(name)
+    raise ClusterStateError,
+    "Cluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'Running'
   end
 
   def terminate
