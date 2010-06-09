@@ -39,15 +39,28 @@ class Cluster
   end
 
   def Cluster.status
+
+    if @@clusters.size == 0
+      #try to get cluster info from AWS if 
+      #there's nothing here.
+      Cluster.sync
+    end
+
     retval = {}
     @@clusters.each  do |name,cluster|
-      retval[name] = {}
-      retval[name]['state'] = cluster.state
-      retval[name]['num_zookeepers'] = cluster.num_zookeepers
-      retval[name]['num_regionservers'] = cluster.num_regionservers
+      retval[name] = cluster.status
     end
     retval
   end
+
+  def status
+    retval = {}
+    retval['state'] = @state
+    retval['num_zookeepers'] = @num_zookeepers
+    retval['num_regionservers'] = @num_regionservers
+    retval
+  end
+
 
   def Cluster.sync
     #fixme: make synchronized, since we modify shared Class variable @@clusters_info.
@@ -87,13 +100,13 @@ class Cluster
     @@clusters_info.reservationSet['item'].each do |ec2_instance_set|
       security_group = ec2_instance_set.groupSet['item'][0]['groupId']
       if (security_group == @name)
-        @slaves = @@clusters_info.reservationSet['item'][i]['instancesSet']['item']
+        @slaves = ec2_instance_set['instancesSet']['item']
       else
         if (security_group == (@name + "-zk"))
-          @zks = @@clusters_info.reservationSet['item'][i]['instancesSet']['item']
+          @zks = ec2_instance_set['instancesSet']['item']
         else
           if (security_group == (@name + "-master"))
-            @master = @@clusters_info.reservationSet['item'][i]['instancesSet']['item'][0]
+            @master = ec2_instance_set['instancesSet']['item'][0]
             @state = @master['instanceState']['name']
           end
         end
@@ -104,34 +117,6 @@ class Cluster
     @num_zookeepers = @zks.size
     @num_regionservers = @slaves.size
 
-  end
-
-  def zks 
-    return @zks
-  end
-
-  def master
-    return @master
-  end
-
-  def slaves
-    return @slaves
-  end
-
-  def name
-    return @name
-  end
-
-  def state
-    return @state
-  end
-
-  def num_regionservers
-    return @num_regionservers
-  end
-
-  def num_zookeepers
-    return @num_zookeepers
   end
 
   def Cluster.describe_instances(options = {})
