@@ -2,22 +2,35 @@
 require 'AWS'
 
 class Cluster
+  @@clusters = {}
+  def initialize( name, options = {} )
+    
+    raise ArgumentError, 
+    "Cluster name '#{name}' is already in use for cluster:\n#{@@clusters[name]}\n" if @@clusters[name]
 
-  def initialize( options = {} )
     options = { 
       :num_region_servers => 5,
       :num_zookeepers => 1
     }.merge(options)
     
-    @name = options[:name]
+    @name = name
     @num_region_servers = options[:num_region_servers]
     @num_zookeepers = options[:num_zookeepers]
 
-    raise ArgumentError, "No :name provided" if options[:name].nil? || options[:name].nil?
     @state = "Initialized"
 
     puts "Cluster '#{@name}' ready to launch()."
+    
+    @@clusters[name] = self
 
+  end
+
+  def Cluster.all
+    @@clusters
+  end
+
+  def Cluster.[](name) 
+    @@clusters[name]
   end
 
   def launch()
@@ -58,7 +71,7 @@ class Cluster
   end
 
   def to_s
-    "Cluster (state='#{@state}'): name=#@name; #region servers: #@num_region_servers; #zoo keepers: #@num_zookeepers"
+    "Cluster (state='#{@state}'): name: #@name; #region servers: #@num_region_servers; #zoo keepers: #@num_zookeepers"
   end
 
 end
