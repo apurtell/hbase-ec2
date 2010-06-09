@@ -41,6 +41,9 @@ class Cluster
   end
 
   def launch()
+    #kill existing 'launch' threads for this cluster, if any.
+    # ..
+
     if fork
       #parent.
       puts "forked process to launch cluster: #{@name}.."
@@ -63,6 +66,10 @@ class Cluster
   end
 
   def terminate
+    #kill 'launch' threads for this cluster, if any.
+    # ..
+    
+
     if fork
       #parent.
       puts "forked process to terminate cluster: #{@name}.."
