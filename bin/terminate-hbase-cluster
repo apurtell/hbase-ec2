@@ -23,6 +23,8 @@ if [ -z $1 ]; then
 fi
 
 CLUSTER=$1
+#if second arg is set, then don't prompt for "Terminate all instances? [yes or no]" confirmation.
+NOPROMPT=$2
 
 # Import variables
 bin=`dirname "$0"`
@@ -37,10 +39,13 @@ HBASE_INSTANCES=`echo "$HBASE_INSTANCES" | grep INSTANCE | grep running`
 
 echo "Running HBase instances:"
 echo "$HBASE_INSTANCES"
-read -p "Terminate all instances? [yes or no]: " answer
 
-if [ "$answer" != "yes" ]; then
-  exit 1
+if [ -z "$NOPROMPT" ] || [ "$NOPROMPT" != "noprompt" ]; then
+    read -p "Terminate all instances? [yes or no]: " answer
+
+    if [ "$answer" != "yes" ]; then
+	exit 1
+    fi
 fi
 
 ec2-terminate-instances $TOOL_OPTS `echo "$HBASE_INSTANCES" | awk '{print $2}'`
