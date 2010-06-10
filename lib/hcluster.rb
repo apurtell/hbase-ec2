@@ -5,7 +5,7 @@ require 'net/ssh'
 class HClusterStateError < StandardError
 end
 
-class AWS::HCluster
+class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
   @@clusters_info = {}
 
