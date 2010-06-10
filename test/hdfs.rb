@@ -87,6 +87,17 @@ class Cluster
       end
       i = i+1
     end
+
+    #remove any member of @@cluster whose state == "terminated"
+    @@clusters.each do |name,cluster|
+      if (cluster.state == "terminated")
+        @@clusters.delete(name)
+      end
+    end
+  end
+
+  def state 
+    return @state
   end
 
   def sync
