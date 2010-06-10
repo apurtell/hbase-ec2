@@ -35,21 +35,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   end
 
-  def HCluster.status
-
-    if @@clusters.size == 0
-      #try to get cluster info from AWS if 
-      #there's nothing here.
-      HCluster.sync
-    end
-
-    retval = {}
-    @@clusters.each  do |name,cluster|
-      retval[name] = cluster.status
-    end
-    retval
-  end
-
   def status
     retval = {}
     retval['state'] = @state
@@ -92,6 +77,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @num_zookeepers = @zks.size
     @num_regionservers = @slaves.size
 
+  end
+
+  def HCluster.all
+    @@clusters
   end
 
   def HCluster.[](name) 
