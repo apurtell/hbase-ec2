@@ -203,7 +203,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         end
         
         channel.on_close do |ch|
-#          puts "channel is closing!"
+          # cleanup, if any..
         end
       end
       
@@ -213,10 +213,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def run_test(test)
-    puts "run_test(#{test}).."
+    #fixme : fix hardwired version (first) then path to hadoop (later)
     ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop/hadoop-test-0.20-tm-2.jar #{test}")
-    puts "..run_test(#{test}) done."
-    puts "done."
   end
 
   def terminate
