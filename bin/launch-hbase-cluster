@@ -17,7 +17,7 @@
 
 # Launch an EC2 cluster of HBase instances.
 
-set -x
+#set -x
 
 bin=`dirname "$0"`
 bin=`cd "$bin"; pwd`
