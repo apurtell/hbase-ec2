@@ -58,6 +58,8 @@ class Cluster
     retval['state'] = @state
     retval['num_zookeepers'] = @num_zookeepers
     retval['num_regionservers'] = @num_regionservers
+    retval['launchTime'] = @launchTime
+    retval['dnsName'] = @dnsName
     retval
   end
 
@@ -94,6 +96,9 @@ class Cluster
         @@clusters.delete(name)
       end
     end
+
+    @@clusters
+
   end
 
   def state 
@@ -119,6 +124,8 @@ class Cluster
           if (security_group == (@name + "-master"))
             @master = ec2_instance_set['instancesSet']['item'][0]
             @state = @master['instanceState']['name']
+            @dnsName = @master['dnsName']
+            @launchTime = @master['launchTime']
           end
         end
       end
@@ -171,6 +178,26 @@ class Cluster
   def run_test(name)
     raise ClusterStateError,
     "Cluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
+
+    puts "starting test.."
+    
+    # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
+    # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
+    # and their servers' private keys will vary.
+    Net::SSH.start(@dnsName,'root',
+                   :keys => ["~/.ec2/root.pem"],
+                   :paranoid => false
+                   ) do |ssh|
+      puts "inner loop..."
+      stdout = ""
+      ssh.exec!("ls -l /") do |channel,stream,data|
+        stdout << data if stream == :stdout
+      end
+      puts stdout
+
+    end
+    puts "done."
+
   end
 
   def terminate
