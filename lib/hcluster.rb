@@ -60,6 +60,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     retval['num_regionservers'] = @num_regionservers
     retval['launchTime'] = @launchTime
     retval['dnsName'] = @dnsName
+    retval['master'] = @master.instanceId
     retval
   end
 
