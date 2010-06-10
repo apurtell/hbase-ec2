@@ -173,11 +173,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   end
 
-  def run_test(name)
+  def ssh(command)
     raise HClusterStateError,
     "HCluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
-
-    puts "starting test.."
     
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
@@ -186,16 +184,18 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                    :keys => ["~/.ec2/root.pem"],
                    :paranoid => false
                    ) do |ssh|
-      puts "inner loop..."
       stdout = ""
-      ssh.exec!("ls -l /") do |channel,stream,data|
+      ssh.exec!(command) do |channel,stream,data|
         stdout << data if stream == :stdout
       end
       puts stdout
-
     end
-    puts "done."
+  end
 
+  def run_test(test)
+    puts "starting test.."
+    ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop/hadoop-test-0.20-tm-2.jar #{test}")
+    puts "done."
   end
 
   def terminate
