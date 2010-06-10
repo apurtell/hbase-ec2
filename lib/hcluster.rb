@@ -163,21 +163,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def launch()
     #kill existing 'launch' threads for this cluster, if any.
     # ..
-
-    if fork
-      #parent.
-      puts "forked process to launch cluster: #{@name}.."
+    
+    thread = Thread.new(@name) do |cluster_name|
+      puts "new thread to launch cluster: #{cluster_name}.."
       @state = "launching"
-      trap("CLD") do
-        pid = Process.wait
-        puts "Child pid #{pid}: finished launching"
-        sync
-      end
-
-    else
-      #child
-      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_region_servers} #{@num_zookeepers}")
+      # (use pure-ruby AWS call here rather than the following):
+      # exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_region_servers} #{@num_zookeepers}")
     end
+
   end
 
   def run_test(name)
