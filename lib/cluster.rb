@@ -151,7 +151,12 @@ class Cluster
   end
 
   def Cluster.[](name) 
-    @@clusters[name]
+    test = @@clusters[name]
+    if test
+      test
+    else
+      @@clusters[name] = Cluster.new(name)
+    end
   end
 
   def launch()
