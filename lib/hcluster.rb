@@ -2,10 +2,10 @@
 require 'AWS'
 require 'net/ssh'
 
-class ClusterStateError < StandardError
+class HClusterStateError < StandardError
 end
 
-class Cluster
+class AWS::HCluster
   @@clusters = {}
   @@clusters_info = {}
 
@@ -14,7 +14,7 @@ class Cluster
   def initialize( name, options = {} )
     
     raise ArgumentError, 
-    "Cluster name '#{name}' is already in use for cluster:\n#{@@clusters[name]}\n" if @@clusters[name]
+    "HCluster name '#{name}' is already in use for cluster:\n#{@@clusters[name]}\n" if @@clusters[name]
 
     options = { 
       :num_region_servers => 5,
@@ -33,17 +33,17 @@ class Cluster
     @state = "Initialized"
     sync
 
-    puts "Cluster '#{@name}' state: #{@state}"
+    puts "HCluster '#{@name}' state: #{@state}"
 
 
   end
 
-  def Cluster.status
+  def HCluster.status
 
     if @@clusters.size == 0
       #try to get cluster info from AWS if 
       #there's nothing here.
-      Cluster.sync
+      HCluster.sync
     end
 
     retval = {}
@@ -64,12 +64,12 @@ class Cluster
   end
 
 
-  def Cluster.sync
+  def HCluster.sync
     #fixme: make synchronized, since we modify shared Class variable @@clusters_info.
     #re-initialize class variables (@@clusters) from Amazon source info.
     #get all clusters
     #for each cluster, set state.
-    @@clusters_info = Cluster.describe_instances
+    @@clusters_info = HCluster.describe_instances
 
     i = 0
     @@clusters_info.reservationSet['item'].each do |ec2_instance_set|
@@ -81,7 +81,7 @@ class Cluster
         else
           if @@clusters[security_group] == nil
             puts "creating in-memory cluster record : '#{security_group}'"
-            @@clusters[security_group] = Cluster.new(security_group)
+            @@clusters[security_group] = HCluster.new(security_group)
           end
           puts "syncing: : '#{security_group}'"
           @@clusters[security_group].sync
@@ -97,7 +97,7 @@ class Cluster
       end
     end
 
-    Cluster.status
+    HCluster.status
   end
 
   def state 
@@ -109,7 +109,7 @@ class Cluster
     #(multiple read-only accessors, (like this function) are fine, though).
     #instance method: update 'self' with all info related to EC2 instances
     # where security_group = @name
-    @@clusters_info = Cluster.describe_instances
+    @@clusters_info = HCluster.describe_instances
 
     i = 0
     @@clusters_info.reservationSet['item'].each do |ec2_instance_set|
@@ -136,12 +136,12 @@ class Cluster
 
   end
 
-  def Cluster.describe_instances(options = {})
+  def HCluster.describe_instances(options = {})
     # class method: get all instances from @@connection.
     @@connection.describe_instances(options)
   end
 
-  def Cluster.describe_security_groups(options = {})
+  def HCluster.describe_security_groups(options = {})
     # class method: get all instances from @@connection.
     @@connection.describe_security_groups(options)
   end
@@ -150,12 +150,12 @@ class Cluster
     # object method: get all instances from @@connection with security_group = @name.
   end
 
-  def Cluster.[](name) 
+  def HCluster.[](name) 
     test = @@clusters[name]
     if test
       test
     else
-      @@clusters[name] = Cluster.new(name)
+      @@clusters[name] = HCluster.new(name)
     end
   end
 
@@ -180,8 +180,8 @@ class Cluster
   end
 
   def run_test(name)
-    raise ClusterStateError,
-    "Cluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
+    raise HClusterStateError,
+    "HCluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
 
     puts "starting test.."
     
@@ -226,7 +226,7 @@ class Cluster
   end
 
   def to_s
-    "Cluster (state='#{@state}'): name: #@name; #region servers: #@num_region_servers; #zoo keepers: #@num_zookeepers"
+    "HCluster (state='#{@state}'): name: #@name; #region servers: #@num_region_servers; #zoo keepers: #@num_zookeepers"
   end
 
 end
