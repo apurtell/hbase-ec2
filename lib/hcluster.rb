@@ -7,12 +7,9 @@ end
 
 class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
-  @@clusters_info = {}
-
-  @@connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
 
   def initialize( name, options = {} )
-    
+    super(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
     raise ArgumentError, 
     "HCluster name '#{name}' is already in use for cluster:\n#{@@clusters[name]}\n" if @@clusters[name]
 
@@ -64,56 +61,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     retval
   end
 
-
-  def HCluster.sync
-    #fixme: make synchronized, since we modify shared Class variable @@clusters_info.
-    #re-initialize class variables (@@clusters) from Amazon source info.
-    #get all clusters
-    #for each cluster, set state.
-    @@clusters_info = HCluster.describe_instances
-
-    i = 0
-    @@clusters_info.reservationSet['item'].each do |ec2_instance_set|
-      security_group = ec2_instance_set.groupSet['item'][0]['groupId']
-      if security_group !~ /-zk$/ and security_group !~ /-master$/
-        # check master only (not regionservers or zookeepers)
-        if (ec2_instance_set['instancesSet']['item'][0]['instanceState']['name'] == "terminated") 
-          puts "ignoring terminated instance with security group: '#{security_group}'"
-        else
-          if @@clusters[security_group] == nil
-            puts "creating in-memory cluster record : '#{security_group}'"
-            @@clusters[security_group] = HCluster.new(security_group)
-          end
-          puts "syncing: : '#{security_group}'"
-          @@clusters[security_group].sync
-        end
-      end
-      i = i+1
-    end
-
-    #remove any member of @@cluster whose state == "terminated"
-    @@clusters.each do |name,cluster|
-      if (cluster.state == "terminated")
-        @@clusters.delete(name)
-      end
-    end
-
-    HCluster.status
-  end
-
   def state 
     return @state
   end
 
   def sync
-    #fixme: make write-synchronized, since we read shared Class variable @@clusters_info.
-    #(multiple read-only accessors, (like this function) are fine, though).
     #instance method: update 'self' with all info related to EC2 instances
     # where security_group = @name
-    @@clusters_info = HCluster.describe_instances
 
     i = 0
-    @@clusters_info.reservationSet['item'].each do |ec2_instance_set|
+    describe_instances.reservationSet['item'].each do |ec2_instance_set|
       security_group = ec2_instance_set.groupSet['item'][0]['groupId']
       if (security_group == @name)
         @slaves = ec2_instance_set['instancesSet']['item']
@@ -135,20 +92,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @num_zookeepers = @zks.size
     @num_regionservers = @slaves.size
 
-  end
-
-  def HCluster.describe_instances(options = {})
-    # class method: get all instances from @@connection.
-    @@connection.describe_instances(options)
-  end
-
-  def HCluster.describe_security_groups(options = {})
-    # class method: get all instances from @@connection.
-    @@connection.describe_security_groups(options)
-  end
-
-  def describe_instances
-    # object method: get all instances from @@connection with security_group = @name.
   end
 
   def HCluster.[](name) 
