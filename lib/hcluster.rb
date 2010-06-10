@@ -185,23 +185,43 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                    :paranoid => false
                    ) do |ssh|
       stdout = ""
-      ssh.exec!(command) do |channel,stream,data|
-        stdout << data if stream == :stdout
+
+      channel = ssh.open_channel do |ch|
+
+        channel.exec(command) do |ch, success|
+          #FIXME: throw exception(?)
+          puts "error: could not execute command '#{command}'" unless success
+        end
+
+        channel.on_data do |ch, data|
+          puts "#{data}"
+          channel.send_data "something for stdin\n"
+        end
+        
+        channel.on_extended_data do |ch, type, data|
+          puts "(stderr): #{data}"
+        end
+        
+        channel.on_close do |ch|
+#          puts "channel is closing!"
+        end
       end
-      puts stdout
+      
+      channel.wait
+
     end
   end
 
   def run_test(test)
-    puts "starting test.."
+    puts "run_test(#{test}).."
     ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop/hadoop-test-0.20-tm-2.jar #{test}")
+    puts "..run_test(#{test}) done."
     puts "done."
   end
 
   def terminate
     #kill 'launch' threads for this cluster, if any.
     # ..
-    
 
     if fork
       #parent.
