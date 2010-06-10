@@ -97,8 +97,7 @@ class Cluster
       end
     end
 
-    @@clusters
-
+    Cluster.status
   end
 
   def state 
