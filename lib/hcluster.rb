@@ -103,17 +103,40 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def launch()
     #kill existing 'launch' threads for this cluster, if any.
     # ..
-    
-    thread = Thread.new(@name) do |cluster_name|
-      puts "new thread to launch cluster: #{cluster_name}.."
+    if fork
+      #parent.
+      puts "forked process to launch cluster: #{@name}.."
+      
       @state = "launching"
-      # (use pure-ruby AWS call here rather than the following):
-      # exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_region_servers} #{@num_zookeepers}")
+      trap("CLD") do
+        pid = Process.wait
+        puts "Child pid #{pid}: finished launching"
+        sync
+      end
+    else
+      #child
+      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_region_servers} #{@num_zookeepers}")
     end
-
   end
 
-  def ssh(command)
+  def hdfs_test
+    run_test("TestDFSIO -read -nrFiles 10 -fileSize 1000",
+             lambda{|line|
+               puts line
+             },
+             lambda{|line|
+               puts "(hdfs_test_stderr): #{line}"
+             })
+  end
+
+  def run_test(test,stdout_scanner = lambda{|line| puts line},stderr_scanner = lambda{|line| puts "(stderr): #{line}"})
+    #fixme : fix hardwired version (first) then path to hadoop (later)
+    ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop/hadoop-test-0.20-tm-2.jar #{test}",
+        stdout_scanner,
+        stderr_scanner)
+  end
+
+  def ssh(command,stdout_scanner = lambda{|line| puts line},stderr_scanner = lambda{|line| puts "(stderr): #{line}"})
     raise HClusterStateError,
     "HCluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
     
