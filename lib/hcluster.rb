@@ -157,12 +157,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         end
 
         channel.on_data do |ch, data|
-          puts "#{data}"
-          channel.send_data "something for stdin\n"
+          stdout_scanner.call(data)
+# example of how to talk back to server.
+#          channel.send_data "something for stdin\n"
         end
         
         channel.on_extended_data do |ch, type, data|
-          puts "(stderr): #{data}"
+          stderr_scanner.call(data)
         end
         
         channel.on_close do |ch|
@@ -173,11 +174,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       channel.wait
 
     end
-  end
-
-  def run_test(test)
-    #fixme : fix hardwired version (first) then path to hadoop (later)
-    ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop/hadoop-test-0.20-tm-2.jar #{test}")
   end
 
   def terminate
