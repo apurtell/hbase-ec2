@@ -42,7 +42,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     retval['num_regionservers'] = @num_regionservers
     retval['launchTime'] = @launchTime
     retval['dnsName'] = @dnsName
-    retval['master'] = @master.instanceId
+    if @master
+      retval['master'] = @master.instanceId
+    end
     retval
   end
 
@@ -77,10 +79,20 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @num_zookeepers = @zks.size
     @num_regionservers = @slaves.size
 
+    self.status
+
   end
 
-  def HCluster.all
-    @@clusters
+  def HCluster.status
+    if @@clusters.size > 0
+      instances = @@clusters[@@clusters.first[0]].describe_instances
+      status_do(instances)
+    else 
+      temp = HCluster.new("temp")
+      retval = status_do(temp.describe_instances)
+      @@clusters.delete("temp")
+      retval
+    end
   end
 
   def HCluster.[](name) 
@@ -171,6 +183,27 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def to_s
     "HCluster (state='#{@state}'): name: #@name; #region servers: #@num_region_servers; #zoo keepers: #@num_zookeepers"
+  end
+
+  private
+  def HCluster.status_do(instances)
+    retval = []
+    instances.reservationSet['item'].each do |ec2_instance_set|
+      security_group = ec2_instance_set.groupSet['item'][0]['groupId']
+      if (security_group =~ /-zk$/)
+      else
+        if (security_group =~ /-master$/) 
+        else
+          registered_cluster = @@clusters[security_group]
+          if !registered_cluster
+            registered_cluster = HCluster.new(security_group)
+          end
+          registered_cluster.sync
+          retval.push(registered_cluster.status)
+        end
+      end
+    end
+    return retval
   end
 
 end
