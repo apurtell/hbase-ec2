@@ -29,10 +29,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     @state = "Initialized"
     sync
-
-    puts "HCluster '#{@name}' state: #{@state}"
-
-
   end
 
   def status
