@@ -2,6 +2,10 @@
 require 'AWS'
 require 'net/ssh'
 
+def trim(string = "")
+  string.gsub(/^\s+/,'').gsub(/\s+$/,'')
+end
+
 class HClusterStateError < StandardError
 end
 
@@ -120,13 +124,49 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def hdfs_test
+    state = "begin"
+    result_hash = {}
     run_test("TestDFSIO -read -nrFiles 10 -fileSize 1000",
              lambda{|line|
                puts line
              },
              lambda{|line|
-               puts "(hdfs_test_stderr): #{line}"
+               #implement finite state machine
+               if line =~ /-+ TestDFSIO -+/
+                 state = "results"
+               end
+
+               if state == "results"
+                 inner_state = "begin"
+                 attrib = ""
+                 value = ""
+                 line.each(":") { |fragment|
+                   if inner_state == "begin"
+                     if fragment =~ / INFO /
+                       inner_state = "attrib_name"
+                     end
+                   else
+                     if inner_state == "value"
+                       value = trim(fragment)
+                       value = value.gsub(/\n.*/,'')
+                       result_hash[attrib] = value
+                       inner_state = "begin"
+                     else
+                       if inner_state == "attrib_name"
+                         attrib = trim(fragment)
+                         attrib = attrib.gsub(/:/,'')
+                         inner_state = "value"
+                       end
+                     end
+                   end
+                 }
+               else
+                 putc "."
+               end
              })
+    puts
+    result_hash
+
   end
 
   def run_test(test,stdout_scanner = lambda{|line| puts line},stderr_scanner = lambda{|line| puts "(stderr): #{line}"})
