@@ -125,12 +125,17 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def hdfs_test
     state = "begin"
-    result_hash = {}
+    stderr = ""
+    stdout = ""
+    result_pairs = {}
+    retval_hash = {}
     run_test("TestDFSIO -read -nrFiles 10 -fileSize 1000",
              lambda{|line|
+               stdout = stdout + line
                puts line
              },
              lambda{|line|
+               stderr = stderr + line
                #implement finite state machine
                if line =~ /-+ TestDFSIO -+/
                  state = "results"
@@ -140,7 +145,17 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                  inner_state = "begin"
                  attrib = ""
                  value = ""
-                 line.each(":") { |fragment|
+                 
+                 line.each(":") { |frag|
+                   puts "colsep [#{frag}]"
+                 }
+
+                 line.each(": ") { |frag|
+                   puts "colspacesep [#{frag}]"
+                 }
+
+
+                 line.each(": ") { |fragment|
                    if inner_state == "begin"
                      if fragment =~ / INFO /
                        inner_state = "attrib_name"
@@ -149,7 +164,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                      if inner_state == "value"
                        value = trim(fragment)
                        value = value.gsub(/\n.*/,'')
-                       result_hash[attrib] = value
+                       result_pairs[attrib] = value
                        inner_state = "begin"
                      else
                        if inner_state == "attrib_name"
@@ -165,7 +180,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                end
              })
     puts
-    result_hash
+
+    retval_hash['pairs'] = result_pairs
+    retval_hash['stdout'] = stdout
+    retval_hash['stderr'] = stderr
+
+    retval_hash
 
   end
 
