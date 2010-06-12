@@ -127,8 +127,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     state = "begin"
     stderr = ""
     stdout = ""
-    result_pairs = {}
     retval_hash = {}
+    result_pairs = {}
+    av_lines = []
     run_test("TestDFSIO -read -nrFiles 10 -fileSize 1000",
              lambda{|line|
                stdout = stdout + line
@@ -142,43 +143,21 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                end
 
                if state == "results"
-                 inner_state = "begin"
-                 attrib = ""
-                 value = ""
-                 
-                 line.each(":") { |frag|
-                   puts "colsep [#{frag}]"
-                 }
-
-                 line.each(": ") { |frag|
-                   puts "colspacesep [#{frag}]"
-                 }
-
-
-                 line.each(": ") { |fragment|
-                   if inner_state == "begin"
-                     if fragment =~ / INFO /
-                       inner_state = "attrib_name"
-                     end
-                   else
-                     if inner_state == "value"
-                       value = trim(fragment)
-                       value = value.gsub(/\n.*/,'')
-                       result_pairs[attrib] = value
-                       inner_state = "begin"
-                     else
-                       if inner_state == "attrib_name"
-                         attrib = trim(fragment)
-                         attrib = attrib.gsub(/:/,'')
-                         inner_state = "value"
-                       end
-                     end
-                   end
-                 }
+                 av_lines.push(line)
                else
                  putc "."
                end
              })
+
+    av_section = av_lines.join("\n")
+
+    av_section.split(/\n/).each {|av_line|
+      av_pair = av_line.split(/: /)
+      if (av_pair[2])
+        result_pairs[trim(av_pair[1])] = trim(av_pair[2])
+      end
+    }
+
     puts
 
     retval_hash['pairs'] = result_pairs
