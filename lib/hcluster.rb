@@ -30,9 +30,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @zks = []
     @master = nil
     @slaves = []
+    @ssh_input = []
 
     @state = "Initialized"
     sync
+  end
+
+  def ssh_input
+    return @ssh_input
   end
 
   def status
@@ -59,15 +64,25 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     i = 0
     zookeepers = 0
+    @zks = []
+    @slaves = []
     describe_instances.reservationSet['item'].each do |ec2_instance_set|
       security_group = ec2_instance_set.groupSet['item'][0]['groupId']
       if (security_group == @name)
-        @slaves = ec2_instance_set['instancesSet']['item']
-        @num_regionservers = @slaves.size
+        slaves = ec2_instance_set['instancesSet']['item']
+        slaves.each {|rs|
+          if (rs['instanceState']['name'] != 'terminated')
+            @slaves.push(rs)
+          end
+        }
       else
         if (security_group == (@name + "-zk"))
-          @zks = ec2_instance_set['instancesSet']['item']
-          zookeepers = zookeepers + @zks.size
+          zks = ec2_instance_set['instancesSet']['item']
+          zks.each {|zk|
+            if (zk['instanceState']['name'] != 'terminated')
+              @zks.push(zk)
+            end
+          }
         else
           if (security_group == (@name + "-master"))
             @master = ec2_instance_set['instancesSet']['item'][0]
@@ -80,8 +95,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       i = i+1
     end
 
-    if (zookeepers > 0) 
-      @num_zookeepers = zookeepers
+    if (@zks.size > 0)
+      @num_zookeepers = @zks.size
+    end
+
+    if (@slaves.size > 0)
+      @num_regionservers = @slaves.size
     end
 
     self.status
@@ -119,8 +138,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       @state = "launching"
       trap("CLD") do
         pid = Process.wait
-        puts "Child pid #{pid}: finished launching"
         sync
+        puts "Child pid #{pid}: finished launching: #{@name}"
       end
     else
       #child
@@ -194,7 +213,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       stdout = ""
 
       channel = ssh.open_channel do |ch|
-
+        @ssh_input.push(command)
         channel.exec(command) do |ch, success|
           #FIXME: throw exception(?)
           puts "error: could not execute command '#{command}'" unless success
