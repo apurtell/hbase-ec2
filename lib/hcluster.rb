@@ -58,6 +58,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # where security_group = @name
 
     i = 0
+    zookeepers = 0
     describe_instances.reservationSet['item'].each do |ec2_instance_set|
       security_group = ec2_instance_set.groupSet['item'][0]['groupId']
       if (security_group == @name)
@@ -66,7 +67,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       else
         if (security_group == (@name + "-zk"))
           @zks = ec2_instance_set['instancesSet']['item']
-          @num_zookeepers = @zks.size
+          zookeepers = zookeepers + @zks.size
         else
           if (security_group == (@name + "-master"))
             @master = ec2_instance_set['instancesSet']['item'][0]
@@ -77,6 +78,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         end
       end
       i = i+1
+    end
+
+    if (zookeepers > 0) 
+      @num_zookeepers = zookeepers
     end
 
     self.status
