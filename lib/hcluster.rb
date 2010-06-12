@@ -135,7 +135,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     retval_hash = {}
     result_pairs = {}
     av_lines = []
-    run_test("TestDFSIO -read -nrFiles 10 -fileSize 1000",
+    run_test("TestDFSIO -write -nrFiles 10 -fileSize 1000",
              lambda{|line|
                stdout = stdout + line
                puts line
