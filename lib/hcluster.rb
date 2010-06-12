@@ -18,12 +18,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     "HCluster name '#{name}' is already in use for cluster:\n#{@@clusters[name]}\n" if @@clusters[name]
 
     options = { 
-      :num_region_servers => 5,
+      :num_regionservers => 5,
       :num_zookeepers => 1
     }.merge(options)
     
     @name = name
-    @num_region_servers = options[:num_region_servers]
+    @num_regionservers = options[:num_regionservers]
     @num_zookeepers = options[:num_zookeepers]
     @@clusters[name] = self
 
@@ -61,9 +61,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       security_group = ec2_instance_set.groupSet['item'][0]['groupId']
       if (security_group == @name)
         @slaves = ec2_instance_set['instancesSet']['item']
+        @num_regionservers = @slaves.size
       else
         if (security_group == (@name + "-zk"))
           @zks = ec2_instance_set['instancesSet']['item']
+          @num_zookeepers = @zks.size
         else
           if (security_group == (@name + "-master"))
             @master = ec2_instance_set['instancesSet']['item'][0]
@@ -75,9 +77,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
       i = i+1
     end
-
-    @num_zookeepers = @zks.size
-    @num_regionservers = @slaves.size
 
     self.status
 
@@ -119,7 +118,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
     else
       #child
-      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_region_servers} #{@num_zookeepers}")
+      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_regionservers} #{@num_zookeepers}")
     end
   end
 
