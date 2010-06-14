@@ -66,6 +66,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     zookeepers = 0
     @zks = []
     @slaves = []
+
+    if !describe_instances.reservationSet
+      #no instances yet (even terminated ones have been cleaned up)
+      return self.status
+    end
+
     describe_instances.reservationSet['item'].each do |ec2_instance_set|
       security_group = ec2_instance_set.groupSet['item'][0]['groupId']
       if (security_group == @name)
@@ -147,7 +153,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
-  def hdfs_test
+  def hdfs_test(nrFiles=10,fileSize=1000)
     state = "begin"
     stderr = ""
     stdout = ""
