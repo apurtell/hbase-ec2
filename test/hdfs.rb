@@ -6,11 +6,20 @@ load("~/hbase-ec2/lib/hcluster.rb");
 
 class TestHCluster < Test::Unit::TestCase
   def test_init
-    hdfs = AWS::EC2::Base::HCluster.new("hdfs");
+
+    security_group = "hdfs"
+
+    hdfs = AWS::EC2::Base::HCluster.new(security_group)
     # show status
     status = hdfs.status
-    assert_equal("hdfs",status['name'])
+
+    status.keys.each { |key|
+      puts "#{key} => #{status[key]}"
+    }
+
+    assert_equal(security_group,status['name'])
     assert(("terminated" == status['state']) || ("Initialized" == status['state']))
+    assert((nil == status['launchTime']) || ("2010-06-17T18:45:13.000Z" == status['launchTime']))
   end
 end
 
