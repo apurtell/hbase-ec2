@@ -205,7 +205,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         stderr_scanner)
   end
 
-  def ssh(command,stdout_scanner = lambda{|line| puts line},stderr_scanner = lambda{|line| puts "(stderr): #{line}"})
+  def ssh(command,
+          stdout_scanner = lambda{|line| puts line},
+          stderr_scanner = lambda{|line| puts "(stderr): #{line}"})
     raise HClusterStateError,
     "HCluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
     
