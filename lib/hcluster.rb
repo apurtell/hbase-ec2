@@ -136,20 +136,54 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def launch()
     #kill existing 'launch' threads for this cluster, if any.
-    # ..
-    if fork
-      #parent.
-      puts "forked process to launch cluster: #{@name}.."
-      
-      @state = "launching"
-      trap("CLD") do
-        pid = Process.wait
-        sync
-        puts "Child pid #{pid}: finished launching: #{@name}"
+    #..
+    #      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_regionservers} #{@num_zookeepers}")
+    init_hbase_cluster_secgroups
+  end
+
+  def init_hbase_cluster_secgroups
+    # create security group @name, @name_master, and @name_slave
+    groups = describe_security_groups
+    found_master = false
+    found_rs = false
+    found_zk = false
+    groups['securityGroupInfo']['item'].each { |group| 
+      if group['groupName'] =~ /^#{@name}$/
+        found_rs = true
       end
-    else
-      #child
-      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_regionservers} #{@num_zookeepers}")
+      if group['groupName'] =~ /^#{@name}-master$/
+        found_master = true
+      end
+      if group['groupName'] =~ /^#{@name}-zk$/
+        found_zk = true
+      end
+    }
+
+    if (found_rs == false) 
+      puts "creating new security group: #{@name}.."
+      create_security_group({
+        :group_name => "#{@name}",
+        :group_description => "Group for HBase Slaves."
+      })
+      puts "..done"
+    end
+
+    if (found_master == false) 
+      puts "creating new security group: #{@name}-master.."
+      create_security_group({
+        :group_name => "#{@name}-master",
+        :group_description => "Group for HBase Master."
+      })
+      puts "..done"
+    end
+
+    if (found_zk == false) 
+      puts "creating new security group: #{@name}-zk.."
+      create_security_group({
+        :group_name => "#{@name}-zk",
+        :group_description => "Group for HBase Zookeeper quorum."
+      })
+      puts "..done"
     end
   end
 
