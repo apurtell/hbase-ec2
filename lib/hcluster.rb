@@ -139,6 +139,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #..
     #      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_regionservers} #{@num_zookeepers}")
     init_hbase_cluster_secgroups
+    launch_hbase_zookeepers
+    launch_hbase_master
+    launch_hbase_slaves
   end
 
   def init_hbase_cluster_secgroups
@@ -185,6 +188,15 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       })
       puts "..done"
     end
+  end
+
+  def launch_hbase_zookeepers
+  end
+
+  def launch_hbase_master
+  end
+
+  def launch_hbase_slaves
   end
 
   def hdfs_test(nrFiles=10,fileSize=1000)
