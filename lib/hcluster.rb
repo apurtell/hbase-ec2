@@ -32,6 +32,33 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @slaves = []
     @ssh_input = []
 
+    #architectures
+    @zk_arch = "x86_64"
+    @master_arch = "x86_64"
+    @slave_arch = "x86_64"
+
+    #images
+    @zk_image_name = "hbase-0.20-tm-2-#{@zk_arch}-ekoontz"
+    @master_image_name = "hbase-0.20-tm-2-#{@master_arch}-ekoontz"
+    @slave_image_name = "hbase-0.20-tm-2-#{@slave_arch}-ekoontz"
+
+    #security_groups
+    @zk_security_group = @name + "-zk"
+    @rs_security_group = @name
+    @master_security_group = @name + "-master"
+
+    #machine instance types
+    @zk_instance_type = "m1.large"
+    @rs_instance_type = "m1.large"
+    @master_instance_type = "m1.large"
+
+    #ssh keys
+    @zk_key_name = "root"
+    @rs_key_name = "root"
+    @master_key_name = "root"
+
+    @owner_id = "155698749257"
+
     @state = "Initialized"
     sync
   end
@@ -191,12 +218,43 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def launch_hbase_zookeepers
+    options = {}
+    zk_img_id = zk_image['imageId']
+    options[:image_id] = zk_img_id
+    options[:min_count] = @num_zookeepers
+    options[:max_count] = @num_zookeepers
+    options[:security_group] = @zk_security_group
+    options[:instance_type] = @zk_instance_type
+    options[:key_name] = @zk_key_name
+
+    run_instances(options)
   end
 
   def launch_hbase_master
   end
 
   def launch_hbase_slaves
+  end
+
+  def zk_image
+    #specifying owner_id speeds up describe_images() a lot, but only works if the image is owned by @owner.
+    describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
+      |image| image['name'] == @zk_image_name
+    }
+  end
+
+  def regionserver_image
+    #specifying owner_id speeds up describe_images() a lot, but only works if the image is owned by @owner.
+    describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
+      |image| image['name'] == @slave_image_name
+    }
+  end
+
+  def master_image
+    #specifying owner_id speeds up describe_images() a lot, but only works if the image is owned by @owner.
+    describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
+      |image| image['name'] == @master_image_name
+    }
   end
 
   def hdfs_test(nrFiles=10,fileSize=1000)
