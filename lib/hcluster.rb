@@ -166,9 +166,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #..
     #      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_regionservers} #{@num_zookeepers}")
     init_hbase_cluster_secgroups
-    launch_hbase_zookeepers
-    launch_hbase_master
-    launch_hbase_slaves
+    launch_zookeepers
+#    launch_master
+#    launch_slaves
   end
 
   def init_hbase_cluster_secgroups
@@ -217,7 +217,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
-  def launch_hbase_zookeepers
+  def launch_zookeepers
     options = {}
     zk_img_id = zk_image['imageId']
     options[:image_id] = zk_img_id
@@ -227,13 +227,40 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:instance_type] = @zk_instance_type
     options[:key_name] = @zk_key_name
 
-    run_instances(options)
+    @zks = run_instances(options)
+
+    #FIXME: add support for ENABLE_ELASTIC_IPS (see launch-hbase-zookeeper.)
+
+    #wait until all are running..
+    
+    #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper.
+#    describe_instances.reservationSet.item.each do |ec2_instance_set|
+#      security_group = ec2_instance_set.groupSet.item[0]['groupId']
+#      if (security_group == @zk_security_group)
+#        instance_id = ec2_instance_set.instancesSet.item[1]
+#        dnsName = inst['reservationSet']['item'][1]['instancesSet']['item'][0]['dnsName']
+#      end
+#    end
+    
+
+    #scp $SSH_OPTS "$bin"/hbase-ec2-init-zookeeper-remote.sh "root@${host}:/var/tmp" && ssh $SSH_OPTS "root@${host}" "sh -c \"ZOOKEEPER_QUORUM=\"$ZOOKEEPER_QUORUM\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"" && break
+#    sleep 5
+
   end
 
-  def launch_hbase_master
+  def terminate_zookeepers
+    @zks.instancesSet.item.each { |zk|
+      options = {}
+      options[:instance_id] = zk.instanceId
+      puts "terminating zookeeper: #{zk.instanceId}"
+      terminate_instances(options)
+    }
   end
 
-  def launch_hbase_slaves
+  def launch_master
+  end
+
+  def launch_slaves
   end
 
   def zk_image
@@ -352,23 +379,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def terminate
-    #kill 'launch' threads for this cluster, if any.
-    # ..
-
-    if fork
-      #parent.
-      puts "forked process to terminate cluster: #{@name}.."
-      @state = "terminating"
-      trap("CLD") do
-        pid = Process.wait
-        puts "Child pid #{pid}: finished terminating"
-        @state = "terminated"
-      end
-
-    else
-      #child
-      exec("~/hbase-ec2/bin/hbase-ec2 terminate-cluster #{@name} noprompt")
-    end
+    terminate_zookeepers
   end
 
   def to_s
