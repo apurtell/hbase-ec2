@@ -217,6 +217,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
+  def zks
+    @zks
+  end
+
   def launch_zookeepers
     options = {}
     zk_img_id = zk_image['imageId']
@@ -227,24 +231,43 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:instance_type] = @zk_instance_type
     options[:key_name] = @zk_key_name
 
+    #<thread>
     @zks = run_instances(options)
 
     #FIXME: add support for ENABLE_ELASTIC_IPS (see launch-hbase-zookeeper.)
 
-    #wait until all are running..
-    
-    #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper.
-#    describe_instances.reservationSet.item.each do |ec2_instance_set|
-#      security_group = ec2_instance_set.groupSet.item[0]['groupId']
-#      if (security_group == @zk_security_group)
-#        instance_id = ec2_instance_set.instancesSet.item[1]
-#        dnsName = inst['reservationSet']['item'][1]['instancesSet']['item'][0]['dnsName']
-#      end
-#    end
-    
+    # wait until instance comes up...
 
-    #scp $SSH_OPTS "$bin"/hbase-ec2-init-zookeeper-remote.sh "root@${host}:/var/tmp" && ssh $SSH_OPTS "root@${host}" "sh -c \"ZOOKEEPER_QUORUM=\"$ZOOKEEPER_QUORUM\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"" && break
-#    sleep 5
+    #</thead>
+    #until threadized: sleep.
+    wait = true
+    until wait == false
+      puts "waiting for instances to start.."
+      sleep 10
+
+      wait = false
+      @zks.instancesSet.item.each {|zk| 
+        # get status of instance zk.instanceId.
+        status = describe_instances({:instance_id => zk.instanceId}).reservationSet.item[0].instancesSet.item[0].instanceState.name
+        puts "#{zk.instanceId} : #{status}"
+        if (!(status == "running"))
+          wait = true
+        end
+      }
+
+    end
+
+    puts "..sshing to zk..."
+
+    #when zookeepers are ready, copy info over to them..
+    #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
+    @zks.instancesSet.item.each {|zk|
+      puts "zk: #{zk}"
+#      scp $SSH_OPTS "$bin"/hbase-ec2-init-zookeeper-remote.sh "root@${host}:/var/tmp"
+      ssh_to(zk.dnsName,"ls -l")
+#      ssh_to(zk.dnsName,
+#          "sh -c \"ZOOKEEPER_QUORUM=\"$ZOOKEEPER_QUORUM\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
+    }
 
   end
 
@@ -336,12 +359,26 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         stderr_scanner)
   end
 
+  def ssh_to(host,command,
+             stdout_scanner = lambda{|line| puts line},
+             stderr_scanner = lambda{|line| puts "(stderr): #{line}"})
+    # variant of ssh with different param ordering.
+    ssh(command,stdout_scanner,stderr_scanner,host)
+  end
+
+  # send a command and handle stdout and stderr 
+  # with supplied anonymous functions (puts by default)
+  # to a specific host (master by default).
   def ssh(command,
           stdout_scanner = lambda{|line| puts line},
-          stderr_scanner = lambda{|line| puts "(stderr): #{line}"})
-    raise HClusterStateError,
-    "HCluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
-    
+          stderr_scanner = lambda{|line| puts "(stderr): #{line}"},
+          host = @dnsName)
+    # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
+
+    if (host == @dnsName)
+      raise HClusterStateError,
+      "HCluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
+    end
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
     # and their servers' private keys will vary.
