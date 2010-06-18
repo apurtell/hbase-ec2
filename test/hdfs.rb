@@ -50,7 +50,7 @@ class TestHCluster < Test::Unit::TestCase
 
   def test_zookeepers
     # make sure number of zookeepers is the same as number asked for.
-    assert(@@num_zookeepers = zks.instancesSet['item']size)
+    assert(@@num_zookeepers = @@cluster.zks.instancesSet['item'].size)
   end
 
   def test_master
