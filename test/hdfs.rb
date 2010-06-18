@@ -2,7 +2,7 @@
 
 require 'test/unit'
 $:.unshift File.join(File.dirname(__FILE__),"..", "lib")
-require 'hcluster.rb'
+require 'hcluster'
 
 def dump_hash(hash)
   hash.keys.each { |key|
@@ -31,7 +31,7 @@ class TestHCluster < Test::Unit::TestCase
       puts "continuing."
 
       status = @@cluster.status
-      dump_hash(status)      
+#      dump_hash(status)      
     end
 
     assert(("terminated" == status['state']) || ("Initialized" == status['state']) || ("shutting-down" == status['state']))
@@ -42,12 +42,37 @@ class TestHCluster < Test::Unit::TestCase
 
   end
 
+  def test_launch
+    puts "test: launch.."
+    @@cluster.launch
+    assert(true)
+  end
 
+  def test_zookeepers
+    # make sure number of zookeepers is the same as number asked for.
+    assert(@@num_zookeepers = zks.instancesSet['item']size)
+  end
 
-#  def test_launch
-#    @@cluster.launch
-#    assert(true)
-#  end
+  def test_master
+    assert(true)
+  end
+
+  def test_regionservers
+    assert(true)
+  end
+
+  def test_stuff
+    puts "test: work.."
+    sleep 50
+    puts "done."
+  end
+
+  def test_terminate
+    puts "test: terminate.."
+    @@cluster.terminate
+    assert(true)
+  end
+
   
 
 end
