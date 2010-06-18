@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 require 'AWS'
 require 'net/ssh'
+require 'net/scp'
 
 def trim(string = "")
   string.gsub(/^\s+/,'').gsub(/\s+$/,'')
@@ -243,32 +244,42 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     wait = true
     until wait == false
       puts "waiting for instances to start.."
-      sleep 10
 
       wait = false
-      @zks.instancesSet.item.each {|zk| 
+      @zks.instancesSet.item.each_index {|i| 
+        zk = @zks.instancesSet.item[i]
         # get status of instance zk.instanceId.
-        status = describe_instances({:instance_id => zk.instanceId}).reservationSet.item[0].instancesSet.item[0].instanceState.name
+        instance_info = describe_instances({:instance_id => zk.instanceId}).reservationSet.item[0].instancesSet.item[0]
+        status = instance_info.instanceState.name
         puts "#{zk.instanceId} : #{status}"
         if (!(status == "running"))
           wait = true
+        else
+          #instance is running 
+          @zks.instancesSet.item[i] = instance_info
         end
+        sleep 10
       }
-
     end
+    setup_zookeepers
+  end
 
-    puts "..sshing to zk..."
-
+  def setup_zookeepers
     #when zookeepers are ready, copy info over to them..
     #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
-    @zks.instancesSet.item.each {|zk|
-      puts "zk: #{zk}"
-#      scp $SSH_OPTS "$bin"/hbase-ec2-init-zookeeper-remote.sh "root@${host}:/var/tmp"
-      ssh_to(zk.dnsName,"ls -l")
-#      ssh_to(zk.dnsName,
-#          "sh -c \"ZOOKEEPER_QUORUM=\"$ZOOKEEPER_QUORUM\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
-    }
 
+    @zks.instancesSet.item.each {|zk|
+      scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
+      ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\"#{zookeeper_quorum}\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
+    }
+  end
+
+  def zookeeper_quorum
+    retval = ""
+    @zks.instancesSet.item.each {|zk|
+      retval = "#{retval} #{zk.dnsName}"
+    }
+    trim(retval)
   end
 
   def terminate_zookeepers
@@ -352,26 +363,26 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   end
 
-  def run_test(test,stdout_scanner = lambda{|line| puts line},stderr_scanner = lambda{|line| puts "(stderr): #{line}"})
+  def run_test(test,stdout_line_reader = lambda{|line| puts line},stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
     #fixme : fix hardwired version (first) then path to hadoop (later)
     ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop/hadoop-test-0.20-tm-2.jar #{test}",
-        stdout_scanner,
-        stderr_scanner)
+        stdout_line_reader,
+        stderr_line_reader)
   end
 
   def ssh_to(host,command,
-             stdout_scanner = lambda{|line| puts line},
-             stderr_scanner = lambda{|line| puts "(stderr): #{line}"})
+             stdout_line_reader = lambda{|line| puts line},
+             stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
     # variant of ssh with different param ordering.
-    ssh(command,stdout_scanner,stderr_scanner,host)
+    ssh(command,stdout_line_reader,stderr_line_reader,host)
   end
 
   # send a command and handle stdout and stderr 
   # with supplied anonymous functions (puts by default)
   # to a specific host (master by default).
   def ssh(command,
-          stdout_scanner = lambda{|line| puts line},
-          stderr_scanner = lambda{|line| puts "(stderr): #{line}"},
+          stdout_line_reader = lambda{|line| puts line},
+          stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
           host = @dnsName)
     # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
 
@@ -382,7 +393,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
     # and their servers' private keys will vary.
-    Net::SSH.start(@dnsName,'root',
+    Net::SSH.start(host,'root',
                    :keys => ["~/.ec2/root.pem"],
                    :paranoid => false
                    ) do |ssh|
@@ -396,13 +407,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         end
 
         channel.on_data do |ch, data|
-          stdout_scanner.call(data)
+          stdout_line_reader.call(data)
 # example of how to talk back to server.
 #          channel.send_data "something for stdin\n"
         end
         
         channel.on_extended_data do |ch, type, data|
-          stderr_scanner.call(data)
+          stderr_line_reader.call(data)
         end
         
         channel.on_close do |ch|
@@ -412,6 +423,18 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       
       channel.wait
 
+    end
+  end
+
+  def scp_to(host,local_path,remote_path)
+    #http://net-ssh.rubyforge.org/scp/v1/api/classes/Net/SCP.html#M000005
+    # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
+    # and their servers' private keys will vary.
+    Net::SCP.start(host,'root',
+                   :keys => ["~/.ec2/root.pem"],
+                   :paranoid => false
+                   ) do |scp|
+      scp.upload! local_path,remote_path
     end
   end
 
