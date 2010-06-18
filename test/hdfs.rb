@@ -1,8 +1,14 @@
 #!/usr/bin/ruby
 
 require 'test/unit'
+$:.unshift File.join(File.dirname(__FILE__),"..", "lib")
+require 'hcluster.rb'
 
-load("~/hbase-ec2/lib/hcluster.rb");
+def dump_hash(hash)
+  hash.keys.each { |key|
+    puts "#{key} => #{hash[key]}"
+  }
+end
 
 class TestHCluster < Test::Unit::TestCase
   @@security_group = "hdfs"
@@ -14,9 +20,7 @@ class TestHCluster < Test::Unit::TestCase
     # show status
     status = @@cluster.status
 
-    status.keys.each { |key|
-      puts "#{key} => #{status[key]}"
-    }
+    dump_hash(status)
 
     assert_equal(@@security_group,status['name'])
 
@@ -27,11 +31,7 @@ class TestHCluster < Test::Unit::TestCase
       puts "continuing."
 
       status = @@cluster.status
-      
-      status.keys.each { |key|
-        puts "#{key} => #{status[key]}"
-      }
-     
+      dump_hash(status)      
     end
 
     assert(("terminated" == status['state']) || ("Initialized" == status['state']) || ("shutting-down" == status['state']))
@@ -39,9 +39,6 @@ class TestHCluster < Test::Unit::TestCase
     # second part of this disjunction is indended to only be true if launchTime is
     # a valid EC-2 returned launching time, e.g.: "2010-06-17T21:03:56.000Z"
     assert((nil == launchTime) || Time.parse(Time.parse(launchTime).to_s) == Time.parse(launchTime))
-
-
-
 
   end
 
