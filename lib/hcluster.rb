@@ -162,7 +162,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
-  def launch()
+  def launch
     #kill existing 'launch' threads for this cluster, if any.
     #..
     #      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_regionservers} #{@num_zookeepers}")
@@ -232,35 +232,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:instance_type] = @zk_instance_type
     options[:key_name] = @zk_key_name
 
-    #<thread>
     @zks = run_instances(options)
-
-    #FIXME: add support for ENABLE_ELASTIC_IPS (see launch-hbase-zookeeper.)
-
-    # wait until instance comes up...
-
-    #</thead>
-    #until threadized: sleep.
-    wait = true
-    until wait == false
-      puts "waiting for instances to start.."
-
-      wait = false
-      @zks.instancesSet.item.each_index {|i| 
-        zk = @zks.instancesSet.item[i]
-        # get status of instance zk.instanceId.
-        instance_info = describe_instances({:instance_id => zk.instanceId}).reservationSet.item[0].instancesSet.item[0]
-        status = instance_info.instanceState.name
-        puts "#{zk.instanceId} : #{status}"
-        if (!(status == "running"))
-          wait = true
-        else
-          #instance is running 
-          @zks.instancesSet.item[i] = instance_info
-        end
-        sleep 10
-      }
-    end
     setup_zookeepers
   end
 
@@ -312,29 +284,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #run_instances() returns an array.
     puts "starting master.."
 
-    @master_instances = run_instances(options)
-
-    wait = true
-    until wait == false
-      puts "waiting for instances to start.."
-
-      wait = false
-      #only one master, so @master is only set once.
-      @master_instances.instancesSet.item.each_index {|i| 
-        @master = @master_instances.instancesSet.item[i]
-        # get status of instance master.instanceId.
-        instance_info = describe_instances({:instance_id => @master.instanceId}).reservationSet.item[0].instancesSet.item[0]
-        status = instance_info.instanceState.name
-        puts "#{@master.instanceId} : #{status}"
-        if (!(status == "running"))
-          wait = true
-        else
-          #instance is running 
-          @master_instances.instancesSet.item[i] = instance_info
-        end
-        sleep 10
-      }
-    end
+    @master_instances = supervised_launch(options)
 
     @master = @master_instances.instancesSet.item[0]
     @zone = @master.placement.availabilityZone
@@ -345,6 +295,43 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def launch_slaves
+    options = {}
+    rs_img_id = rs_image['imageId']
+    options[:image_id] = rs_img_id
+    options[:min_count] = @num_regionservers
+    options[:max_count] = @num_regionservers
+    options[:security_group] = @rs_security_group
+    options[:instance_type] = @rs_instance_type
+    options[:key_name] = @rs_key_name
+    @slaves = supervised_launch(options)
+  end
+
+  def supervised_launch(options)
+    #<thread>
+    instances = run_instances(options)
+
+    #FIXME: add support for ENABLE_ELASTIC_IPS (see launch-hbase-zookeeper.)
+    wait = true
+    until wait == false
+      wait = false
+      instances.instancesSet.item.each_index {|i| 
+        instance = instances.instancesSet.item[i]
+        # get status of instance instance.instanceId.
+        instance_info = describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
+        status = instance_info.instanceState.name
+        puts "supervised_launch: #{instance.instanceId} : #{status}"
+        if (!(status == "running"))
+          wait = true
+        else
+          #instance is running 
+          instances.instancesSet.item[i] = instance_info
+        end
+        if wait == true
+          sleep 10
+        end
+      }
+    end
+    return instances
   end
 
   def zk_image
@@ -490,6 +477,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def master
     @master
+  end
+
+  def slaves
+    @slaves
   end
 
   def terminate
