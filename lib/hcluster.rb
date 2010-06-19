@@ -231,7 +231,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:instance_type] = @zk_instance_type
     options[:key_name] = @zk_key_name
     puts "starting zookeepers.."
-    @zks = supervised_launch(options)
+    @zks = supervised_launch(options).instancesSet.item
     #fix me: test for ssh-ability rather than sleeping
     sleep 10
 
@@ -242,7 +242,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #when zookeepers are ready, copy info over to them..
     #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
 
-    @zks.instancesSet.item.each {|zk|
+    @zks.each {|zk|
       scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
     }
@@ -250,14 +250,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def zookeeper_quorum
     retval = ""
-    @zks.instancesSet.item.each {|zk|
+    @zks.each {|zk|
       retval = "#{retval} #{zk.privateDnsName}"
     }
     trim(retval)
   end
 
   def terminate_zookeepers
-    @zks.instancesSet.item.each { |zk|
+    @zks.each { |zk|
       options = {}
       options[:instance_id] = zk.instanceId
       puts "terminating zookeeper: #{zk.instanceId}"
@@ -266,16 +266,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def terminate_slaves
-    if @slaves.size > 0 
-      if @slaves.instancesSet
-        @slaves.instancesSet.item.each { |slave|
-          options = {}
-          options[:instance_id] = slave.instanceId
-          puts "terminating regionserver: #{slave.instanceId}"
-          terminate_instances(options)
-        }
-      end
-    end
+    @slaves.each { |slave|
+      options = {}
+      options[:instance_id] = slave.instanceId
+      puts "terminating regionserver: #{slave.instanceId}"
+      terminate_instances(options)
+    }
   end
 
   def terminate_master
@@ -322,7 +318,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:key_name] = @rs_key_name
     options[:availability_zone] = @zone
     puts "starting regionservers.."
-    @slaves = supervised_launch(options)
+    @slaves = supervised_launch(options).instancesSet.item
   end
 
   def supervised_launch(options)
@@ -421,7 +417,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def run_test(test,stdout_line_reader = lambda{|line| puts line},stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
     #fixme : fix hardwired version (first) then path to hadoop (later)
-    ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop/hadoop-test-0.20-tm-2.jar #{test}",
+    ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop-0.20-tm-2/hadoop-test-0.20-tm-2.jar #{test}",
         stdout_line_reader,
         stderr_line_reader)
   end
