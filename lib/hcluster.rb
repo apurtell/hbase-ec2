@@ -168,7 +168,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_regionservers} #{@num_zookeepers}")
     init_hbase_cluster_secgroups
     launch_zookeepers
-#    launch_master
+    launch_master
 #    launch_slaves
   end
 
@@ -270,14 +270,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     @zks.instancesSet.item.each {|zk|
       scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
-      ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\"#{zookeeper_quorum}\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
+      ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
     }
   end
 
   def zookeeper_quorum
     retval = ""
     @zks.instancesSet.item.each {|zk|
-      retval = "#{retval} #{zk.dnsName}"
+      retval = "#{retval} #{zk.privateDnsName}"
     }
     trim(retval)
   end
