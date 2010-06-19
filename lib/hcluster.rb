@@ -34,7 +34,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @ssh_input = []
 
     #architectures
-    @zk_arch = "x86_64"
+    @zk_arch = "i386"
     @master_arch = "x86_64"
     @slave_arch = "x86_64"
 
@@ -49,9 +49,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @master_security_group = @name + "-master"
 
     #machine instance types
-    @zk_instance_type = "m1.large"
-    @rs_instance_type = "m1.large"
-    @master_instance_type = "m1.large"
+    @zk_instance_type = "m1.small"
+    @rs_instance_type = "c1.xlarge"
+    @master_instance_type = "c1.xlarge"
 
     #ssh keys
     @zk_key_name = "root"
