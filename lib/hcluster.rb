@@ -169,7 +169,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     init_hbase_cluster_secgroups
     launch_zookeepers
     launch_master
-#    launch_slaves
+    launch_slaves
   end
 
   def init_hbase_cluster_secgroups
@@ -231,8 +231,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:security_group] = @zk_security_group
     options[:instance_type] = @zk_instance_type
     options[:key_name] = @zk_key_name
-
-    @zks = run_instances(options)
+    puts "starting zookeepers.."
+    @zks = supervised_launch(options)
     setup_zookeepers
   end
 
@@ -259,6 +259,15 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       options = {}
       options[:instance_id] = zk.instanceId
       puts "terminating zookeeper: #{zk.instanceId}"
+      terminate_instances(options)
+    }
+  end
+
+  def terminate_slaves
+    @slaves.instancesSet.item.each { |slave|
+      options = {}
+      options[:instance_id] = slave.instanceId
+      puts "terminating regionserver: #{slave.instanceId}"
       terminate_instances(options)
     }
   end
@@ -296,13 +305,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def launch_slaves
     options = {}
-    rs_img_id = rs_image['imageId']
+    rs_img_id = regionserver_image['imageId']
     options[:image_id] = rs_img_id
     options[:min_count] = @num_regionservers
     options[:max_count] = @num_regionservers
     options[:security_group] = @rs_security_group
     options[:instance_type] = @rs_instance_type
     options[:key_name] = @rs_key_name
+    puts "starting regionservers.."
     @slaves = supervised_launch(options)
   end
 
@@ -486,6 +496,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def terminate
     terminate_zookeepers
     terminate_master
+    terminate_slaves
   end
   
   def to_s
