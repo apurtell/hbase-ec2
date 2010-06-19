@@ -232,6 +232,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:key_name] = @zk_key_name
     puts "starting zookeepers.."
     @zks = supervised_launch(options)
+    #fix me: test for ssh-ability rather than sleeping
+    sleep 5
+
     setup_zookeepers
   end
 
@@ -263,12 +266,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def terminate_slaves
-    @slaves.instancesSet.item.each { |slave|
-      options = {}
-      options[:instance_id] = slave.instanceId
-      puts "terminating regionserver: #{slave.instanceId}"
-      terminate_instances(options)
-    }
+    if @slaves 
+      if @slaves.instancesSet
+        @slaves.instancesSet.item.each { |slave|
+          options = {}
+          options[:instance_id] = slave.instanceId
+          puts "terminating regionserver: #{slave.instanceId}"
+          terminate_instances(options)
+        }
+      end
+    end
   end
 
   def terminate_master
