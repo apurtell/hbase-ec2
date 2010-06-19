@@ -444,7 +444,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     if (host == @dnsName)
       raise HClusterStateError,
-      "HCluster '#{name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
+      "HCluster '#{@name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
     end
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
