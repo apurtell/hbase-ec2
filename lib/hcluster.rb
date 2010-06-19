@@ -165,7 +165,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def launch
     #kill existing 'launch' threads for this cluster, if any.
     #..
-    #      exec("~/hbase-ec2/bin/hbase-ec2 launch-cluster #{@name} #{@num_regionservers} #{@num_zookeepers}")
     init_hbase_cluster_secgroups
     launch_zookeepers
     launch_master
@@ -297,6 +296,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     @master = @master_instances.instancesSet.item[0]
     @zone = @master.placement.availabilityZone
+    #fix me: test for ssh-ability rather than sleeping
+    sleep 5
 
     scp_to(@master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
