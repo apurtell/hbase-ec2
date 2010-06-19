@@ -233,7 +233,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "starting zookeepers.."
     @zks = supervised_launch(options)
     #fix me: test for ssh-ability rather than sleeping
-    sleep 5
+    sleep 10
 
     setup_zookeepers
   end
@@ -266,7 +266,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def terminate_slaves
-    if @slaves 
+    if @slaves.size > 0 
       if @slaves.instancesSet
         @slaves.instancesSet.item.each { |slave|
           options = {}
@@ -304,7 +304,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @master = @master_instances.instancesSet.item[0]
     @zone = @master.placement.availabilityZone
     #fix me: test for ssh-ability rather than sleeping
-    sleep 5
+    sleep 10
 
     scp_to(@master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
@@ -320,6 +320,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:security_group] = @rs_security_group
     options[:instance_type] = @rs_instance_type
     options[:key_name] = @rs_key_name
+    options[:availability_zone] = @zone
     puts "starting regionservers.."
     @slaves = supervised_launch(options)
   end
