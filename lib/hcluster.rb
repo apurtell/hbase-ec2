@@ -291,6 +291,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     }
   end
 
+  def terminate_master
+    options = {}
+    options[:instance_id] = @master.instanceId
+    puts "terminating master: #{@master.instanceId}"
+    terminate_instances(options)
+  end
+
   def launch_master
     options = {}
     master_img_id = master_image['imageId']
@@ -312,12 +319,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       puts "waiting for instances to start.."
 
       wait = false
+      #only one master, so @master is only set once.
       @master_instances.instancesSet.item.each_index {|i| 
-        master = @master_instances.instancesSet.item[i]
+        @master = @master_instances.instancesSet.item[i]
         # get status of instance master.instanceId.
-        instance_info = describe_instances({:instance_id => master.instanceId}).reservationSet.item[0].instancesSet.item[0]
+        instance_info = describe_instances({:instance_id => @master.instanceId}).reservationSet.item[0].instancesSet.item[0]
         status = instance_info.instanceState.name
-        puts "#{master.instanceId} : #{status}"
+        puts "#{@master.instanceId} : #{status}"
         if (!(status == "running"))
           wait = true
         else
@@ -328,25 +336,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       }
     end
 
-    #++ ec2-describe-instances -K /Users/ekoontz/.ec2/pk.pem -C /Users/ekoontz/.ec2/cert.pem --request-timeout 300 i-f08d969b
-    #++ grep INSTANCE
-    #++ grep ec2-184-73-26-209.compute-1.amazonaws.com
-    #++ grep running
-    #++ awk '{print $11}'
-    #+ zone=us-east-1b
-    #+ echo us-east-1b
-    #+ true
-    #++ ssh -q -i /Users/ekoontz/.ec2/root.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 root@ec2-184-73-26-209.compute-1.amazonaws.com 'echo "hello"'
-    #+ REPLY=hello
-    #+ '[' '!' -z hello ']'
-    #+ break
-    #+ scp -q -i /Users/ekoontz/.ec2/root.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 /Users/ekoontz/.ec2/root.pem root@ec2-184-73-26-209.compute-1.amazonaws.com:/root/.ssh/id_rsa
-    #+ ssh -q -i /Users/ekoontz/.ec2/root.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 root@ec2-184-73-26-209.compute-1.amazonaws.com 'chmod 600 /root/.ssh/id_rsa'
-    #+ echo 'Master is ec2-184-73-26-209.compute-1.amazonaws.com in zone us-east-1b'
-    #Master is ec2-184-73-26-209.compute-1.amazonaws.com in zone us-east-1b
-    #Starting 5 AMI(s) with ID ami-688f6701 (arch x86_64) in group hdfs2 in zone us-east-1b
+    @master = @master_instances.instancesSet.item[0]
+    @zone = @master.placement.availabilityZone
 
-
+    scp_to(@master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
+    #FIXME: should be 400 probably.
+    ssh_to(@master.dnsName,"chmod 600 /root/.ssh/id_rsa")
   end
 
   def launch_slaves
@@ -493,10 +488,15 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
-  def terminate
-    terminate_zookeepers
+  def master
+    @master
   end
 
+  def terminate
+    terminate_zookeepers
+    terminate_master
+  end
+  
   def to_s
     "HCluster (state='#{@state}'): name: #@name; #region servers: #@num_region_servers; #zoo keepers: #@num_zookeepers"
   end

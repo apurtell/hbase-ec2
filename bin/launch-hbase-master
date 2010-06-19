@@ -16,6 +16,7 @@
 # limitations under the License.
 
 # Launch an EC2 HBase master.
+set -x
 
 if [ -z $1 ]; then
   echo "Cluster name required!"

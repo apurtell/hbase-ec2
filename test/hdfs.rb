@@ -54,6 +54,9 @@ class TestHCluster < Test::Unit::TestCase
   end
 
   def test_master
+    #check for existence of id_rsa file on master.
+    cluster.ssh_to(cluster.master.dnsName,"ls -l .ssh | grep id_rsa",
+                   lambda{|line| puts "ls -l: #{line}"})
     assert(true)
   end
 
