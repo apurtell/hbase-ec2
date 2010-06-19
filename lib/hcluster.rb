@@ -292,6 +292,61 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def launch_master
+    options = {}
+    master_img_id = master_image['imageId']
+    options[:image_id] = master_img_id
+    options[:min_count] = 1
+    options[:max_count] = 1
+    options[:security_group] = @master_security_group
+    options[:instance_type] = @master_instance_type
+    options[:key_name] = @master_key_name
+
+    #only one master, but we'll use an array called "@master_instances" because
+    #run_instances() returns an array.
+    puts "starting master.."
+
+    @master_instances = run_instances(options)
+
+    wait = true
+    until wait == false
+      puts "waiting for instances to start.."
+
+      wait = false
+      @master_instances.instancesSet.item.each_index {|i| 
+        master = @master_instances.instancesSet.item[i]
+        # get status of instance master.instanceId.
+        instance_info = describe_instances({:instance_id => master.instanceId}).reservationSet.item[0].instancesSet.item[0]
+        status = instance_info.instanceState.name
+        puts "#{master.instanceId} : #{status}"
+        if (!(status == "running"))
+          wait = true
+        else
+          #instance is running 
+          @master_instances.instancesSet.item[i] = instance_info
+        end
+        sleep 10
+      }
+    end
+
+    #++ ec2-describe-instances -K /Users/ekoontz/.ec2/pk.pem -C /Users/ekoontz/.ec2/cert.pem --request-timeout 300 i-f08d969b
+    #++ grep INSTANCE
+    #++ grep ec2-184-73-26-209.compute-1.amazonaws.com
+    #++ grep running
+    #++ awk '{print $11}'
+    #+ zone=us-east-1b
+    #+ echo us-east-1b
+    #+ true
+    #++ ssh -q -i /Users/ekoontz/.ec2/root.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 root@ec2-184-73-26-209.compute-1.amazonaws.com 'echo "hello"'
+    #+ REPLY=hello
+    #+ '[' '!' -z hello ']'
+    #+ break
+    #+ scp -q -i /Users/ekoontz/.ec2/root.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 /Users/ekoontz/.ec2/root.pem root@ec2-184-73-26-209.compute-1.amazonaws.com:/root/.ssh/id_rsa
+    #+ ssh -q -i /Users/ekoontz/.ec2/root.pem -o StrictHostKeyChecking=no -o ServerAliveInterval=30 root@ec2-184-73-26-209.compute-1.amazonaws.com 'chmod 600 /root/.ssh/id_rsa'
+    #+ echo 'Master is ec2-184-73-26-209.compute-1.amazonaws.com in zone us-east-1b'
+    #Master is ec2-184-73-26-209.compute-1.amazonaws.com in zone us-east-1b
+    #Starting 5 AMI(s) with ID ami-688f6701 (arch x86_64) in group hdfs2 in zone us-east-1b
+
+
   end
 
   def launch_slaves
