@@ -16,7 +16,6 @@
 # limitations under the License.
 
 # Launch an EC2 HBase master.
-set -x
 
 if [ -z $1 ]; then
   echo "Cluster name required!"
@@ -89,7 +88,7 @@ while true; do
   fi
   sleep 1
 done
-rm -f "$bin"/$USER_DATA_FILE.master
+#rm -f "$bin"/$USER_DATA_FILE.master
 
 # get public (elastic) hostname
 host=`ec2-describe-instances $TOOL_OPTS $inst | grep INSTANCE | grep running | grep $host | awk '{print $4}'`

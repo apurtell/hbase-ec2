@@ -16,6 +16,7 @@
 # limitations under the License.
 
 # Launch an EC2 HBase slaves.
+set -x
 
 if [ -z $1 ]; then
   echo "Cluster name required!"
@@ -60,7 +61,9 @@ sed -e "s|%MASTER_HOST%|$master|" \
     "$bin"/$USER_DATA_FILE > "$bin"/$USER_DATA_FILE.slave
 
 # Start slaves
+echo "START SLAVE INVOCATION:::"
 echo "Starting $NUM_SLAVES AMI(s) with ID $AMI_IMAGE (arch $SLAVE_ARCH) in group $CLUSTER in zone $zone"
 ec2-run-instances $TOOL_OPTS $AMI_IMAGE -n "$NUM_SLAVES" -g "$CLUSTER" -k root -f "$bin"/$USER_DATA_FILE.slave -t "$SLAVE_INSTANCE_TYPE" -z "$zone" | grep INSTANCE | awk '{print $2}' > $INSTANCES_PATH
+echo "START SLAVE INVOCATION:::"
 
-rm "$bin"/$USER_DATA_FILE.slave
+#rm "$bin"/$USER_DATA_FILE.slave

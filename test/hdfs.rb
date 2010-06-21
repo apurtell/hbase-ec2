@@ -54,10 +54,18 @@ class TestHCluster < Test::Unit::TestCase
   end
 
   def test_master
-    #check for existence of id_rsa file on master.
-    cluster.ssh_to(cluster.master.dnsName,"ls -l .ssh | grep id_rsa",
-                   lambda{|line| puts "ls -l: #{line}"})
-    assert(true)
+    # for now, only test is check for existence of id_rsa file on master.
+    found_key = false
+
+    @@cluster.ssh_to(@@cluster.master.dnsName,
+                     "ls -l .ssh | grep id_rsa",
+                     lambda{|line| 
+                       if line =~ /id_rsa/
+                         found_key = true
+                         puts "found key.."
+                       end
+                     })
+    assert(found_key)
   end
 
   def test_regionservers
@@ -66,7 +74,8 @@ class TestHCluster < Test::Unit::TestCase
 
   def test_stuff
     puts "test: work.."
-    sleep 50
+    #work goes here..
+    sleep 5
     puts "done."
   end
 

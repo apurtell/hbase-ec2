@@ -12,6 +12,7 @@ end
 
 class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
+  @@init_script_base = "hbase-ec2-init-remote.sh"
 
   def initialize( name, options = {} )
     super(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
@@ -302,9 +303,20 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #fix me: test for ssh-ability rather than sleeping
     sleep 10
 
+    # <ssh key>
     scp_to(@master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
     ssh_to(@master.dnsName,"chmod 600 /root/.ssh/id_rsa")
+    # </ssh key>
+    
+    # <master init script>
+    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script_base}.master"
+    scp_to(@master.dnsName,init_script,"/root/{@@init_script_base}")
+    ssh_to(@master.dnsName,"chmod 700 /root/{@@init_script_base}")
+    ssh_to(@master.dnsName,"sh /root/{@@init_script_base}")
+    # </master init script>
+
+
   end
 
   def launch_slaves
