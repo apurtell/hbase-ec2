@@ -191,10 +191,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     init_hbase_cluster_secgroups
     launch_zookeepers
-    launch_slaves
     launch_master
+    launch_slaves
 
-    @state = "pending"
+    # if threaded, we would set to "pending" and then 
+    # use join to determine when state should transition to "running".
+    @state = "running"
   end
 
   def init_hbase_cluster_secgroups
@@ -245,38 +247,40 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def do_launch(options,name="",on_boot = nil)
     instances = run_instances(options)
-    Thread.new(instances) do |insts|
-      watch(name,insts)
-      if on_boot
-        on_boot.call(insts.instancesSet.item)
-      end
+    watch(name,instances)
+    if on_boot
+      on_boot.call(instances.instancesSet.item)
     end
     return instances.instancesSet.item
   end
 
   def watch(name,instances)
+    # a separate aws_connection for watch() : this will hopefully allow us to run watch() in a separate thread if desired.
     aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
-
     wait = true
     until wait == false
       wait = false
       instances.instancesSet.item.each_index {|i| 
         instance = instances.instancesSet.item[i]
         # get status of instance instance.instanceId.
-        instance_info = aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
-        status = instance_info.instanceState.name
-        puts "supervised_launch: #{instance.instanceId} : #{status}"
-        if (!(status == "running"))
+        begin
+          instance_info = aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
+          status = instance_info.instanceState.name
+          puts "watch(#{name}): #{instance.instanceId} : #{status}"
+          if (!(status == "running"))
+            wait = true
+          else
+            #instance is running 
+            instances.instancesSet.item[i] = instance_info
+          end
+        rescue AWS::InvalidInstanceIDNotFound
           wait = true
-        else
-          #instance is running 
-          #don't attempt to modify any data shared by other threads.
-          #instances.instancesSet.item[i] = instance_info
-        end
-        if wait == true
-          sleep 5
+          puts "watch(#{name}): instance not found; will retry."
         end
       }
+      if wait == true
+        sleep 5
+      end
     end
   end
 
@@ -294,12 +298,21 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def setup_zookeepers(zks)
-    puts "SETUP ZOOKEEPERS.."
     #when zookeepers are ready, copy info over to them..
     #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
     zks.each {|zk|
-      scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
-      ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
+      ssh_done = false
+      until ssh_done == true
+        begin
+          puts "zk dnsname: #{zk.dnsName}"
+          scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
+          ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
+          ssh_done = true
+        rescue Errno::ECONNREFUSED
+          puts "server #{zk.dnsName} not ready yet - waiting.."
+          sleep 5
+        end
+      end
     }
   end
 
@@ -363,20 +376,29 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   
   # 'masters', but always only one master.
   def setup_master(master)
-    puts "SETUP MASTER.."
-    # <ssh key>
-    scp_to(master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
-    #FIXME: should be 400 probably.
-    ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa")
-    # </ssh key>
-    
-    # <master init script>
-    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
-    scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
-    ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}")
-    # FIXME : needs zookeeper quorum: requires zookeeper to have come up.
-    ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
-    # </master init script>
+    #cluster's dnsName is same as master's.
+    @dnsName = master.dnsName
+    ssh_done = false
+    until ssh_done == true
+      begin
+        # <ssh key>
+        scp_to(master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
+        #FIXME: should be 400 probably.
+        ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa")
+        # </ssh key>
+        
+        # <master init script>
+        init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
+        scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
+        ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}")
+        # FIXME : needs zookeeper quorum: requires zookeeper to have come up.
+        ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
+        # </master init script>
+      rescue Errno::ECONNREFUSED
+        puts "server #{master.dnsName} not ready yet - waiting.."
+        sleep 5
+      end
+    end
   end
 
   def launch_slaves
@@ -393,13 +415,21 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def setup_slaves(slaves) 
-    puts "SETUP SLAVES.."
+    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
     #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
     slaves.each {|slave|
-      init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
-      scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
-      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}")
-      ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
+      ssh_done = false
+      until ssh_done == true
+        begin
+          scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
+          ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}")
+          ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
+          ssh_done = true
+        rescue Errno::ECONNREFUSED
+          puts "server #{slave.dnsName} not ready yet - waiting.."
+          sleep 5
+        end
+      end
     }
   end
 
