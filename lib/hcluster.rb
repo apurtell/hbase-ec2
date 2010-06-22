@@ -12,7 +12,7 @@ end
 
 class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
-  @@init_script_base = "hbase-ec2-init-remote.sh"
+  @@init_script = "hbase-ec2-init-remote.sh"
 
   def initialize( name, options = {} )
     super(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
@@ -164,12 +164,15 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def launch
+    @state = "launching"
+
     #kill existing 'launch' threads for this cluster, if any.
     #..
     init_hbase_cluster_secgroups
     launch_zookeepers
     launch_master
     launch_slaves
+
   end
 
   def init_hbase_cluster_secgroups
@@ -234,7 +237,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "starting zookeepers.."
     @zks = supervised_launch(options).instancesSet.item
     #fix me: test for ssh-ability rather than sleeping
-    sleep 10
+    sleep 20
 
     setup_zookeepers
   end
@@ -244,6 +247,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
 
     @zks.each {|zk|
+      puts "ssh to : #{zk.dnsName}"
       scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
     }
@@ -310,12 +314,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # </ssh key>
     
     # <master init script>
-    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script_base}.master"
-    scp_to(@master.dnsName,init_script,"/root/{@@init_script_base}")
-    ssh_to(@master.dnsName,"chmod 700 /root/{@@init_script_base}")
-    ssh_to(@master.dnsName,"sh /root/{@@init_script_base}")
+    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
+    scp_to(@master.dnsName,init_script,"/root/#{@@init_script}")
+    ssh_to(@master.dnsName,"chmod 700 /root/#{@@init_script}")
+    ssh_to(@master.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
     # </master init script>
-
 
   end
 
@@ -331,6 +334,20 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:availability_zone] = @zone
     puts "starting regionservers.."
     @slaves = supervised_launch(options).instancesSet.item
+
+    @state = "running"
+
+    # <slave init script>
+    @slaves.each {|slave|
+      init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
+      scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
+      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}")
+      ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
+
+      # </slave init script>
+    }
+
+
   end
 
   def supervised_launch(options)
@@ -447,7 +464,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def ssh(command,
           stdout_line_reader = lambda{|line| puts line},
           stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
-          host = @dnsName)
+          host = self.master.dnsName)
     # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
 
     if (host == @dnsName)
@@ -462,7 +479,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                    :paranoid => false
                    ) do |ssh|
       stdout = ""
-
       channel = ssh.open_channel do |ch|
         @ssh_input.push(command)
         channel.exec(command) do |ch, success|

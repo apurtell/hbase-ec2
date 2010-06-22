@@ -3,10 +3,10 @@
 # Script that is run on each EC2 instance on boot. It is passed in the EC2 user
 # data, so should not exceed 16K in size.
 
-MASTER_HOST="%MASTER_HOST%"
-ZOOKEEPER_QUORUM="%ZOOKEEPER_QUORUM%"
-NUM_SLAVES="%NUM_SLAVES%"
-EXTRA_PACKAGES="%EXTRA_PACKAGES%"
+MASTER_HOST=$1
+ZOOKEEPER_QUORUM=$2
+NUM_SLAVES=$3
+EXTRA_PACKAGES=$4
 SECURITY_GROUPS=`wget -q -O - http://169.254.169.254/latest/meta-data/security-groups`
 IS_MASTER=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-master$"); if (a) print "true"; else print "false"; }'`
 if [ "$IS_MASTER" = "true" ]; then
