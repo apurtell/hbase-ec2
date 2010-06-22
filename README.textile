@@ -48,7 +48,6 @@ $ irb
 => "running"
 >> cluster.run_test("TestDFSIO -write -nrFiles 10 -fileSize 1000")
 TestFDSIO.0.0.4
-
 (stderr): 10/06/22 19:43:24 INFO mapred.FileInputFormat: nrFiles = 10
 (stderr): 10/06/22 19:43:24 INFO mapred.FileInputFormat: fileSize (MB) = 1000
 ...
