@@ -382,24 +382,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #cluster's dnsName is same as master's.
     @dnsName = master.dnsName
     @master = master
-    ssh_done = false
-    until ssh_done == true
+
+    connected = false
+    until connected == true
       begin
-        @master.state = "running"
-        # <ssh key>
-        scp_to(master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
-        #FIXME: should be 400 probably.
-        ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa")
-        # </ssh key>
-        
-        # <master init script>
-        init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
-        scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
-        ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}")
-        # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
-        ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
-        ssh_done = true
-        # </master init script>
+        ssh_to(master.dnsName,"true")
+        connected = true
       rescue Errno::ECONNREFUSED
         puts "master: #{master.dnsName} not ready yet - waiting.."
         sleep 5
@@ -408,6 +396,20 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         sleep 5
       end
     end
+
+    @master.state = "running"
+    # <ssh key>
+    scp_to(master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
+    #FIXME: should be 400 probably.
+    ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa")
+    # </ssh key>
+        
+    # <master init script>
+    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
+    scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
+    ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}")
+    # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
+    ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
   end
 
   def launch_slaves
@@ -427,21 +429,23 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
     #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
     slaves.each {|slave|
-      ssh_done = false
-      until ssh_done == true
+      connected = false
+      until connected = true
         begin
-          scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
-          ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}")
-          ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
-          ssh_done = true
+          ssh_to(slave.dnsName,"true")
+          connected = true
         rescue Errno::ECONNREFUSED
           puts "slave: #{slave.dnsName} not ready yet - waiting.."
           sleep 5
         rescue Errno::ETIMEDOUT
-          puts "slave: #{zk.dnsName} not ready yet - waiting.."
+          puts "slave: #{slave.dnsName} not ready yet - waiting.."
           sleep 5
         end
       end
+      scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
+      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}")
+      ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+             summarize_output,summarize_output)
     }
   end
 
@@ -496,10 +500,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
           host = self.master.dnsName)
 #    # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
-#    if (host == @dnsName)
-#      raise HClusterStateError,
-#      "HCluster '#{@name}' is not in running state:\n#{self.to_s}\n" if (self.master.state != 'running' && self.master.state != ..)
-#    end
+    if (host == @dnsName)
+      raise HClusterStateError,
+      "HCluster '#{@name}' is not in running state:\n#{self.to_s}\n" if (host == nil)
+    end
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
     # and their servers' private keys will vary.
@@ -574,6 +578,20 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
     return retval
   end
+
+  def consume_output 
+    #output one '.' per line.
+    return lambda{|line|
+    }
+  end
+
+  def summarize_output 
+    #output one '.' per line.
+    return lambda{|line|
+      putc "."
+    }
+  end
+
 
 end
 
