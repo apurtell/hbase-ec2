@@ -313,6 +313,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:security_group] = @zk_security_group
     options[:instance_type] = @zk_instance_type
     options[:key_name] = @zk_key_name
+    options[:availability_zone] = @zone
     @zks = do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks)})
   end
 
