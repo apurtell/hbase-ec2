@@ -378,9 +378,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def setup_master(master)
     #cluster's dnsName is same as master's.
     @dnsName = master.dnsName
+    @master = master
     ssh_done = false
     until ssh_done == true
       begin
+        @master.state = "running"
         # <ssh key>
         scp_to(master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
         #FIXME: should be 400 probably.
@@ -528,11 +530,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           stdout_line_reader = lambda{|line| puts line},
           stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
           host = self.master.dnsName)
-    # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
-    if (host == @dnsName)
-      raise HClusterStateError,
-      "HCluster '#{@name}' is not in running state:\n#{self.to_s}\n" if @state != 'running'
-    end
+#    # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
+#    if (host == @dnsName)
+#      raise HClusterStateError,
+#      "HCluster '#{@name}' is not in running state:\n#{self.to_s}\n" if self.master.state != 'running'
+#    end
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
     # and their servers' private keys will vary.
