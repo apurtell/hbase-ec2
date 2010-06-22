@@ -266,11 +266,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         begin
           instance_info = aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
           status = instance_info.instanceState.name
-          puts "watch(#{name}): #{instance.instanceId} : #{status}"
           if (!(status == "running"))
             wait = true
           else
             #instance is running 
+            puts "watch(#{name}): #{instance.instanceId} : #{status}"
             instances.instancesSet.item[i] = instance_info
           end
         rescue AWS::InvalidInstanceIDNotFound
@@ -279,6 +279,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         end
       }
       if wait == true
+        putc "."
         sleep 5
       end
     end
@@ -300,22 +301,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def setup_zookeepers(zks)
     #when zookeepers are ready, copy info over to them..
     #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
+    until_ssh_able(zks)
     zks.each {|zk|
-      ssh_done = false
-      until ssh_done == true
-        begin
-          puts "zk dnsname: #{zk.dnsName}"
-          scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
-          ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
-          ssh_done = true
-        rescue Errno::ECONNREFUSED
-          puts "zookeeper: #{zk.dnsName} not ready yet - waiting.."
-          sleep 5
-        rescue Errno::ETIMEDOUT
-          puts "zookeeper: #{zk.dnsName} not ready yet - waiting.."
-          sleep 5
-        end
-      end
+      puts "zk dnsname: #{zk.dnsName}"
+      scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
+      ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
     }
   end
 
@@ -383,19 +373,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @dnsName = master.dnsName
     @master = master
 
-    connected = false
-    until connected == true
-      begin
-        ssh_to(master.dnsName,"true")
-        connected = true
-      rescue Errno::ECONNREFUSED
-        puts "master: #{master.dnsName} not ready yet - waiting.."
-        sleep 5
-      rescue Errno::ETIMEDOUT
-        puts "master: #{master.dnsName} not ready yet - waiting.."
-        sleep 5
-      end
-    end
+    until_ssh_able([master])
 
     @master.state = "running"
     # <ssh key>
@@ -409,7 +387,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
     ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}")
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
-    ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
+    ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+           summarize_output,summarize_output)
   end
 
   def launch_slaves
@@ -428,20 +407,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def setup_slaves(slaves) 
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
     #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
+    until_ssh_able(slaves)
     slaves.each {|slave|
-      connected = false
-      until connected = true
-        begin
-          ssh_to(slave.dnsName,"true")
-          connected = true
-        rescue Errno::ECONNREFUSED
-          puts "slave: #{slave.dnsName} not ready yet - waiting.."
-          sleep 5
-        rescue Errno::ETIMEDOUT
-          puts "slave: #{slave.dnsName} not ready yet - waiting.."
-          sleep 5
-        end
-      end
       scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
       ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}")
       ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
@@ -577,6 +544,24 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
     end
     return retval
+  end
+
+  def until_ssh_able(instances)
+    instances.each {|instance|
+      connected = false
+      until connected == true
+        begin
+          ssh_to(instance.dnsName,"true")
+          connected = true
+        rescue Errno::ECONNREFUSED
+          puts "host: #{instance.dnsName} not ready yet - waiting.."
+          sleep 5
+        rescue Errno::ETIMEDOUT
+          puts "host: #{instance.dnsName} not ready yet - waiting.."
+          sleep 5
+        end
+      end
+    }
   end
 
   def consume_output 
