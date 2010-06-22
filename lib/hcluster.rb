@@ -309,7 +309,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
           ssh_done = true
         rescue Errno::ECONNREFUSED
-          puts "server #{zk.dnsName} not ready yet - waiting.."
+          puts "zookeeper: #{zk.dnsName} not ready yet - waiting.."
+          sleep 5
+        rescue Errno::ETIMEDOUT
+          puts "zookeeper: #{zk.dnsName} not ready yet - waiting.."
           sleep 5
         end
       end
@@ -400,6 +403,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       rescue Errno::ECONNREFUSED
         puts "master: #{master.dnsName} not ready yet - waiting.."
         sleep 5
+      rescue Errno::ETIMEDOUT
+        puts "master: #{master.dnsName} not ready yet - waiting.."
+        sleep 5
       end
     end
   end
@@ -429,7 +435,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
           ssh_done = true
         rescue Errno::ECONNREFUSED
-          puts "server #{slave.dnsName} not ready yet - waiting.."
+          puts "slave: #{slave.dnsName} not ready yet - waiting.."
+          sleep 5
+        rescue Errno::ETIMEDOUT
+          puts "slave: #{zk.dnsName} not ready yet - waiting.."
           sleep 5
         end
       end
@@ -465,51 +474,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     }
   end
 
-  def hdfs_test(nrFiles=10,fileSize=1000)
-    state = "begin"
-    stderr = ""
-    stdout = ""
-    retval_hash = {}
-    result_pairs = {}
-    av_lines = []
-    run_test("TestDFSIO -write -nrFiles #{nrFiles} -fileSize #{fileSize}",
-             lambda{|line|
-               stdout = stdout + line
-               puts line
-             },
-             lambda{|line|
-               stderr = stderr + line
-               #implement finite state machine
-               if line =~ /-+ TestDFSIO -+/
-                 state = "results"
-               end
-
-               if state == "results"
-                 av_lines.push(line)
-               else
-                 putc "."
-               end
-             })
-
-    av_section = av_lines.join("\n")
-
-    av_section.split(/\n/).each {|av_line|
-      av_pair = av_line.split(/: /)
-      if (av_pair[2])
-        result_pairs[trim(av_pair[1])] = trim(av_pair[2])
-      end
-    }
-
-    puts
-
-    retval_hash['pairs'] = result_pairs
-    retval_hash['stdout'] = stdout
-    retval_hash['stderr'] = stderr
-
-    retval_hash
-
-  end
-
   def run_test(test,stdout_line_reader = lambda{|line| puts line},stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
     #fixme : fix hardwired version (first) then path to hadoop (later)
     ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop-0.20-tm-2/hadoop-test-0.20-tm-2.jar #{test}",
@@ -534,7 +498,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 #    # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
 #    if (host == @dnsName)
 #      raise HClusterStateError,
-#      "HCluster '#{@name}' is not in running state:\n#{self.to_s}\n" if self.master.state != 'running'
+#      "HCluster '#{@name}' is not in running state:\n#{self.to_s}\n" if (self.master.state != 'running' && self.master.state != ..)
 #    end
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
