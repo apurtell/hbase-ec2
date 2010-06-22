@@ -499,8 +499,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       "HCluster '#{@name}' has no master hostname. Cluster summary:\n#{self.to_s}\n" if (host == nil)
     end
 
-    print begin_output
-    STDOUT.flush
+    if begin_output
+      print begin_output
+      STDOUT.flush
+    end
 
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
@@ -531,8 +533,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
       channel.wait
     end
-    print end_output
-    STDOUT.flush
+    if end_output
+      print end_output
+      STDOUT.flush
+    end
   end
 
   def scp_to(host,local_path,remote_path)
@@ -585,7 +589,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       connected = false
       until connected == true
         begin
-          ssh_to(instance.dnsName,"true",consume_output,consume_output,"","")
+          ssh_to(instance.dnsName,"true",consume_output,consume_output,nil,nil)
           connected = true
         rescue Errno::ECONNREFUSED
           if @debug_level > 0
