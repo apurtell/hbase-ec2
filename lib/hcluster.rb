@@ -54,6 +54,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @slaves = []
     @ssh_input = []
 
+    @zone = "us-east-1a"
+
     #architectures
     @zk_arch = "i386"
     @master_arch = "x86_64"
