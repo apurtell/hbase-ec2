@@ -49,7 +49,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :num_zookeepers => 1,
       :zk_image_name => "hbase-0.20-tm-2-#{@zk_arch}-ekoontz",
       :master_image_name => "hbase-0.20-tm-2-#{@master_arch}-ekoontz",
-      :slave_image_name => "hbase-0.20-tm-2-#{@slave_arch}-ekoontz"
+      :slave_image_name => "hbase-0.20-tm-2-#{@slave_arch}-ekoontz",
+      :debug_level => 0
     }.merge(options)
 
     @lock = Monitor.new
@@ -275,7 +276,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
             wait = true
           else
             #instance is running 
-            puts "watch(#{name}): #{instance.instanceId} : #{status}"
+            if debug_level > 0
+              puts "watch(#{name}): #{instance.instanceId} : #{status}"
+            end
             instances.instancesSet.item[i] = instance_info
           end
         rescue AWS::InvalidInstanceIDNotFound
@@ -472,15 +475,18 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def ssh(command,
           stdout_line_reader = lambda{|line| puts line},
           stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
-          host = self.master.dnsName)
+          host = self.master.dnsName,
+          begin_output = "[",
+          end_output = "]")
 #    # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
     if (host == @dnsName)
       raise HClusterStateError,
-      "HCluster '#{@name}' is not in running state:\n#{self.to_s}\n" if (host == nil)
+      "HCluster '#{@name}' has no master hostname. Cluster summary:\n#{self.to_s}\n" if (host == nil)
     end
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
     # and their servers' private keys will vary.
+    print begin_output
     Net::SSH.start(host,'root',
                    :keys => ["~/.ec2/root.pem"],
                    :paranoid => false
@@ -506,6 +512,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
       channel.wait
     end
+    print end_output
   end
 
   def scp_to(host,local_path,remote_path)
@@ -561,10 +568,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           ssh_to(instance.dnsName,"true")
           connected = true
         rescue Errno::ECONNREFUSED
-          puts "host: #{instance.dnsName} not ready yet - waiting.."
+          if debug_level > 0
+            puts "host: #{instance.dnsName} not ready yet - waiting.."
+          end
           sleep 5
         rescue Errno::ETIMEDOUT
-          puts "host: #{instance.dnsName} not ready yet - waiting.."
+          if debug_level > 0
+            puts "host: #{instance.dnsName} not ready yet - waiting.."
+          end
           sleep 5
         end
       end
