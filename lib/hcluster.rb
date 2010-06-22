@@ -263,7 +263,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     return instances.instancesSet.item
   end
 
-  def watch(name,instances,begin_output = "[launch-#{name}",end_output = "]")
+  def watch(name,instances,begin_output = "[launch:#{name}",end_output = "]\n")
     # a separate aws_connection for watch() : this will hopefully allow us to run watch() in a separate thread if desired.
     aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
 
@@ -322,11 +322,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
     until_ssh_able(zks)
     zks.each {|zk|
-      puts "zk dnsname: #{zk.dnsName}"
+      if (@debug_level > 0)
+        puts "zk dnsname: #{zk.dnsName}"
+      end
       scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-             summarize_zkoutput,summarize_zkoutput)
+             summarize_output,summarize_output)
     }
   end
 
@@ -475,9 +477,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def ssh_to(host,command,
              stdout_line_reader = lambda{|line| puts line},
-             stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
+             stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
+             begin_output = "[ssh:#{host}",
+             end_output = "]\n")
     # variant of ssh with different param ordering.
-    ssh(command,stdout_line_reader,stderr_line_reader,host)
+    ssh(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
   end
 
   # send a command and handle stdout and stderr 
@@ -487,8 +491,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           stdout_line_reader = lambda{|line| puts line},
           stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
           host = self.master.dnsName,
-          begin_output = "[",
-          end_output = "]")
+          begin_output = "[ssh:#{host}",
+          end_output = "]\n")
 #    # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
     if (host == @dnsName)
       raise HClusterStateError,
@@ -581,7 +585,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       connected = false
       until connected == true
         begin
-          ssh_to(instance.dnsName,"true")
+          ssh_to(instance.dnsName,"true",consume_output,consume_output,"","")
           connected = true
         rescue Errno::ECONNREFUSED
           if @debug_level > 0
@@ -610,14 +614,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       putc "."
     }
   end
-
-  def summarize_zkoutput 
-    #output one '.' per line.
-    return lambda{|line|
-      putc "z"
-    }
-  end
-
 
 end
 
