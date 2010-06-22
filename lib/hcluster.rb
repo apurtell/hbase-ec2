@@ -58,6 +58,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @name = name
     @num_regionservers = options[:num_regionservers]
     @num_zookeepers = options[:num_zookeepers]
+    @debug_level = options[:debug_level]
+
     @@clusters[name] = self
 
     @zks = []
@@ -203,6 +205,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # if threaded, we would set to "pending" and then 
     # use join to determine when state should transition to "running".
     @state = "running"
+    @launchTime = master.launchTime
   end
 
   def init_hbase_cluster_secgroups
@@ -260,9 +263,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     return instances.instancesSet.item
   end
 
-  def watch(name,instances)
+  def watch(name,instances,begin_output = "[launch-#{name}",end_output = "]")
     # a separate aws_connection for watch() : this will hopefully allow us to run watch() in a separate thread if desired.
     aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
+
+    print begin_output
+    STDOUT.flush
+
     wait = true
     until wait == false
       wait = false
@@ -276,7 +283,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
             wait = true
           else
             #instance is running 
-            if debug_level > 0
+            if @debug_level > 0
               puts "watch(#{name}): #{instance.instanceId} : #{status}"
             end
             instances.instancesSet.item[i] = instance_info
@@ -291,6 +298,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         sleep 5
       end
     end
+
+    print end_output
+    STDOUT.flush
+
   end
 
   def launch_zookeepers
@@ -315,7 +326,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-             summarize_output,summarize_output)
+             summarize_zkoutput,summarize_zkoutput)
     }
   end
 
@@ -483,10 +494,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       raise HClusterStateError,
       "HCluster '#{@name}' has no master hostname. Cluster summary:\n#{self.to_s}\n" if (host == nil)
     end
+
+    print begin_output
+    STDOUT.flush
+
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
-    # and their servers' private keys will vary.
-    print begin_output
+   # and their servers' private keys will vary.
+
     Net::SSH.start(host,'root',
                    :keys => ["~/.ec2/root.pem"],
                    :paranoid => false
@@ -513,6 +528,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       channel.wait
     end
     print end_output
+    STDOUT.flush
   end
 
   def scp_to(host,local_path,remote_path)
@@ -568,12 +584,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           ssh_to(instance.dnsName,"true")
           connected = true
         rescue Errno::ECONNREFUSED
-          if debug_level > 0
+          if @debug_level > 0
             puts "host: #{instance.dnsName} not ready yet - waiting.."
           end
           sleep 5
         rescue Errno::ETIMEDOUT
-          if debug_level > 0
+          if @debug_level > 0
             puts "host: #{instance.dnsName} not ready yet - waiting.."
           end
           sleep 5
@@ -592,6 +608,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #output one '.' per line.
     return lambda{|line|
       putc "."
+    }
+  end
+
+  def summarize_zkoutput 
+    #output one '.' per line.
+    return lambda{|line|
+      putc "z"
     }
   end
 
