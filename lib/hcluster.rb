@@ -37,9 +37,19 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     raise ArgumentError, 
     "HCluster name '#{name}' is already in use for cluster:\n#{@@clusters[name]}\n" if @@clusters[name]
 
+    #architectures
+    @zk_arch = "i386"
+    @master_arch = "x86_64"
+    @slave_arch = "x86_64"
+
+    # image names below will work for your initial trials, but you
+    # will want to change them to your own images.
     options = { 
       :num_regionservers => 5,
-      :num_zookeepers => 1
+      :num_zookeepers => 1,
+      :zk_image_name => "hbase-0.20-tm-2-#{@zk_arch}-ekoontz",
+      :master_image_name => "hbase-0.20-tm-2-#{@master_arch}-ekoontz",
+      :slave_image_name => "hbase-0.20-tm-2-#{@slave_arch}-ekoontz"
     }.merge(options)
 
     @lock = Monitor.new
@@ -56,15 +66,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     @zone = "us-east-1a"
 
-    #architectures
-    @zk_arch = "i386"
-    @master_arch = "x86_64"
-    @slave_arch = "x86_64"
-
     #images
-    @zk_image_name = "hbase-0.20-tm-2-#{@zk_arch}-ekoontz"
-    @master_image_name = "hbase-0.20-tm-2-#{@master_arch}-ekoontz"
-    @slave_image_name = "hbase-0.20-tm-2-#{@slave_arch}-ekoontz"
+    @zk_image_name = options[:zk_image_name]
+    @master_image_name = options[:master_image_name]
+    @slave_image_name = options[:slave_image_name]
 
     #security_groups
     @zk_security_group = @name + "-zk"
@@ -305,7 +310,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     zks.each {|zk|
       puts "zk dnsname: #{zk.dnsName}"
       scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
-      ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
+      ssh_to(zk.dnsName,
+             "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
+             summarize_output,summarize_output)
     }
   end
 
