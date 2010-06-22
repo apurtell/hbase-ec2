@@ -186,30 +186,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
-  def ttest
-    puts "<ttest>"
-    zk_thread = Thread.new do
-      sleep 1
-      puts "zk"
-    end
-
-    rs_thread = Thread.new do
-      sleep 1
-      puts "rs"
-    end
-
-    master_thread = Thread.new do
-      sleep 1
-      puts "master"
-    end
-    
-    zk_thread.join
-    rs_thread.join
-    master_thread.join
-
-    puts "</ttest>"
-  end
-
   def launch
     @state = "launching"
 
@@ -380,28 +356,26 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #only one master, but we'll use an array called "@master_instances" because
     #run_instances() returns an array.
 
-    @master_instances = do_launch(options,"master",lambda{|instances| setup_master})
+    @master_instances = do_launch(options,"master",lambda{|instances| setup_master(instances[0])})
 
     @master = @master_instances[0]
-
-    #setup_master
   end
   
   # 'masters', but always only one master.
-  def setup_master
+  def setup_master(master)
     puts "SETUP MASTER.."
     # <ssh key>
-    scp_to(@master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
+    scp_to(master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
-    ssh_to(@master.dnsName,"chmod 600 /root/.ssh/id_rsa")
+    ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa")
     # </ssh key>
     
     # <master init script>
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
-    scp_to(@master.dnsName,init_script,"/root/#{@@init_script}")
-    ssh_to(@master.dnsName,"chmod 700 /root/#{@@init_script}")
+    scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
+    ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}")
     # FIXME : needs zookeeper quorum: requires zookeeper to have come up.
-    ssh_to(@master.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
+    ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
     # </master init script>
   end
 
