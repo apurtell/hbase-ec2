@@ -393,11 +393,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
         scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
         ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}")
-        # FIXME : needs zookeeper quorum: requires zookeeper to have come up.
+        # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
         ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
+        ssh_done = true
         # </master init script>
       rescue Errno::ECONNREFUSED
-        puts "server #{master.dnsName} not ready yet - waiting.."
+        puts "master: #{master.dnsName} not ready yet - waiting.."
         sleep 5
       end
     end
