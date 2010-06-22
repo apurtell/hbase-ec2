@@ -328,7 +328,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-             summarize_output,summarize_output)
+             summarize_output,summarize_output,
+             "[setup:zk",
+             "]\n")
     }
   end
 
@@ -402,16 +404,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # <ssh key>
     scp_to(master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
-    ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa")
+    ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
     # </ssh key>
         
     # <master init script>
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
     scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
-    ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}")
+    ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
     ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-           summarize_output,summarize_output)
+           summarize_output,summarize_output,"[setup:master","]\n")
   end
 
   def launch_slaves
@@ -433,9 +435,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     until_ssh_able(slaves)
     slaves.each {|slave|
       scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
-      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}")
+      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
       ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-             summarize_output,summarize_output)
+             summarize_output,summarize_output,"[setup:rs:#{slave.dnsName}","]\n")
     }
   end
 
@@ -478,8 +480,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def ssh_to(host,command,
              stdout_line_reader = lambda{|line| puts line},
              stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
-             begin_output = "[ssh:#{host}",
-             end_output = "]\n")
+             begin_output = nil,
+             end_output = nil)
     # variant of ssh with different param ordering.
     ssh(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
   end
@@ -491,8 +493,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           stdout_line_reader = lambda{|line| puts line},
           stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
           host = self.master.dnsName,
-          begin_output = "[ssh:#{host}",
-          end_output = "]\n")
+          begin_output = nil,
+          end_output = nil)
 #    # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
     if (host == @dnsName)
       raise HClusterStateError,
