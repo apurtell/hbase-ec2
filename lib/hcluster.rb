@@ -19,7 +19,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
   @@init_script = "hbase-ec2-init-remote.sh"
 
-  attr_reader :master, :slaves, :zks
+  attr_reader :master, :slaves, :zks, :zone
 
   def initialize( name, options = {} )
     raise HClusterStartError, 
@@ -212,27 +212,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @state = "launching"
 
     init_hbase_cluster_secgroups
+    launch_zookeepers
+    launch_slaves
+    launch_master
 
-    zk_thread = Thread.new do
-      puts "launching zookeepers.."
-      launch_zookeepers
-    end
-
-    rs_thread = Thread.new do
-      puts "launching slaves.."
-      launch_slaves
-    end
-
-    master_thread = Thread.new do
-      puts "launching master.."
-      launch_master
-    end
-    
-    zk_thread.join
-    rs_thread.join
-    master_thread.join
-
-    @state = "running"
+    @state = "pending"
   end
 
   def init_hbase_cluster_secgroups
@@ -281,8 +265,44 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
+  def do_launch(options,name="",on_boot = nil)
+    instances = run_instances(options)
+    Thread.new(instances) do |insts|
+      watch(name,insts)
+      if on_boot
+        on_boot.call(insts.instancesSet.item)
+      end
+    end
+    return instances.instancesSet.item
+  end
+
+  def watch(name,instances)
+    aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
+
+    wait = true
+    until wait == false
+      wait = false
+      instances.instancesSet.item.each_index {|i| 
+        instance = instances.instancesSet.item[i]
+        # get status of instance instance.instanceId.
+        instance_info = aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
+        status = instance_info.instanceState.name
+        puts "supervised_launch: #{instance.instanceId} : #{status}"
+        if (!(status == "running"))
+          wait = true
+        else
+          #instance is running 
+          #don't attempt to modify any data shared by other threads.
+          #instances.instancesSet.item[i] = instance_info
+        end
+        if wait == true
+          sleep 5
+        end
+      }
+    end
+  end
+
   def launch_zookeepers
-    puts "launch_zookeepers"
     options = {}
     zk_img_id = zk_image['imageId']
     options[:image_id] = zk_img_id
@@ -291,31 +311,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:security_group] = @zk_security_group
     options[:instance_type] = @zk_instance_type
     options[:key_name] = @zk_key_name
-#    @zks = supervised_launch(options,"zk").instancesSet.item
-    @zks = [43,42,41]
-    puts "/launch_zookeepers"
-#    setup_zookeepers
+    @zks = do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks)})
   end
 
-  def setup_zookeepers
+  def setup_zookeepers(zks)
+    puts "SETUP ZOOKEEPERS.."
     #when zookeepers are ready, copy info over to them..
     #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
-    @zks.each {|zk|
-      puts "ssh to : #{zk.dnsName}"
-      ssh_server_listening = false
-      until ssh_server_listening == true
-        begin
-          TCPSocket.open(zk.dnsName,"ssh")
-          ssh_server_listening = true
-        rescue
-          ssh_server_listening = false
-        end
-        if ssh_server_listening == false
-          puts "waiting for ssh server to be open.."
-          sleep 1
-        end
-      end
-      
+    zks.each {|zk|
       scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       ssh_to(zk.dnsName,"sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"")
     }
@@ -361,7 +364,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def launch_master
-    return [12,13,14]
     options = {}
     master_img_id = master_image['imageId']
     options[:image_id] = master_img_id
@@ -370,17 +372,21 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:security_group] = @master_security_group
     options[:instance_type] = @master_instance_type
     options[:key_name] = @master_key_name
+    options[:availability_zone] = @zone
 
     #only one master, but we'll use an array called "@master_instances" because
     #run_instances() returns an array.
 
-    @master_instances = supervised_launch(options,"master")
+    @master_instances = do_launch(options,"master",lambda{|instances| setup_master})
 
-    @master = @master_instances.instancesSet.item[0]
-    @zone = @master.placement.availabilityZone
-    #fix me: test for ssh-ability rather than sleeping
-    sleep 10
+    @master = @master_instances[0]
 
+    #setup_master
+  end
+  
+  # 'masters', but always only one master.
+  def setup_master
+    puts "SETUP MASTER.."
     # <ssh key>
     scp_to(@master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
@@ -391,79 +397,41 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
     scp_to(@master.dnsName,init_script,"/root/#{@@init_script}")
     ssh_to(@master.dnsName,"chmod 700 /root/#{@@init_script}")
-
-    # wait for zookeeper thread to come up
-
- #   ssh_to(@master.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
+    # FIXME : needs zookeeper quorum: requires zookeeper to have come up.
+    ssh_to(@master.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
     # </master init script>
-
   end
 
   def launch_slaves
     options = {}
     rs_img_id = regionserver_image['imageId']
     options[:image_id] = rs_img_id
-#    options[:min_count] = @num_regionservers
-#    options[:max_count] = @num_regionservers
-    options[:min_count] = 1
-    options[:max_count] = 1
+    options[:min_count] = @num_regionservers
+    options[:max_count] = @num_regionservers
     options[:security_group] = @rs_security_group
     options[:instance_type] = @rs_instance_type
     options[:key_name] = @rs_key_name
     options[:availability_zone] = @zone
+    @slaves = do_launch(options,"rs",lambda{|instances|setup_slaves(instances)})
+  end
 
-    @slaves = supervised_launch(options,"rs").instancesSet.item
-
-    @state = "running"
-
-#    @slaves.each {|slave|
-#      init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
-#      scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
-#      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}")
-#      ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
-#    }
+  def setup_slaves(slaves) 
+    puts "SETUP SLAVES.."
+    #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
+    slaves.each {|slave|
+      init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
+      scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
+      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}")
+      ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}")
+    }
   end
 
   def describe_instances(options = {}) 
-    puts "desc. instance."
     retval = nil
     @lock.synchronize {
       retval = super(options)
     }
-    puts "/desc. instance."
     retval
-  end
-
-  def supervised_launch(options,name="")
-    @lock.synchronize {
-      return run_instances(options)
-    }
-    puts "returning."
-    return instances
-    
-    #FIXME: add support for ENABLE_ELASTIC_IPS (see launch-hbase-zookeeper.)
-    wait = true
-    until wait == false
-      wait = false
-      instances.instancesSet.item.each_index {|i| 
-        instance = instances.instancesSet.item[i]
-        # get status of instance instance.instanceId.
-
-        instance_info = describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
-        status = instance_info.instanceState.name
-        puts "supervised_launch: (#{name}) #{instance.instanceId} : #{status}"
-        if (!(status == "running"))
-          wait = true
-        else
-          #instance is running 
-          instances.instancesSet.item[i] = instance_info
-        end
-        if wait == true
-          sleep 10
-        end
-      }
-    end
-    return instances
   end
 
   def zk_image
@@ -604,6 +572,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     terminate_zookeepers
     terminate_master
     terminate_slaves
+    @state = "terminated"
     status
   end
   
