@@ -191,16 +191,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       slave_instance_type = @rs_instance_type
     end
 
-# Import variables
-#bin=`dirname "$0"`
-#bin=`cd "$bin"; pwd`
-#. "$bin"/hbase-ec2-env.sh
-
     type=slave_instance_type
     arch=@slave_arch
-
-    puts "INSTANCE_TYPE is #{type}"
-    puts "ARCH is #{arch}"
 
     options = {}
 
@@ -229,8 +221,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                                 :key_name => "root"
                               },"image-builder")[0]
 
-    until_ssh_able([image_builder])
     puts "Copying scripts."
+    until_ssh_able([image_builder])
 
     image_builder_hostname = image_builder.dnsName
 
@@ -250,7 +242,15 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-#{hadoop_version}.tar.gz"
     java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
     puts "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\""
-    ssh_to(image_builder_hostname,"sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"")
+    ssh_to(image_builder_hostname,
+           "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"",
+           lambda{|line,channel|
+#             puts "i-b-output: #{line}"
+             if line =~ /Do you agree to the above license terms/
+               puts " (create_image: consenting to license terms agreement)"
+               channel.send_data "yes\n"
+             end
+           })
 
     #    ssh_to(image_builder_hostname,"sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"")
 
@@ -359,7 +359,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def watch(name,instances,begin_output = "[launch:#{name}",end_output = "]\n")
-    # a separate aws_connection for watch() : this will hopefully allow us to run watch() in a separate thread if desired.
+    # note: this aws_connection is separate for this watch() function call:
+    # this will hopefully allow us to run watch() in a separate thread if desired.
     aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
 
     print begin_output
@@ -385,7 +386,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           end
         rescue AWS::InvalidInstanceIDNotFound
           wait = true
-          puts "watch(#{name}): instance '#{name}' not found (might be transitory problem; will retry.)"
+          puts " watch(#{name}): instance '#{instance.instanceId}' not found (might be transitory problem; retrying.)"
         end
       }
       if wait == true
@@ -423,7 +424,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-             summarize_output,summarize_output,
+             summarize_stdout,summarize_stderr,
              "[setup:zk:#{zk.dnsName}",
              "]\n")
     }
@@ -499,16 +500,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # <ssh key>
     scp_to(master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
-    ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
+    ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_stdout,consume_stderr,nil,nil)
     # </ssh key>
         
     # <master init script>
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
     scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
-    ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
+    ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}",consume_stdout,consume_stderr,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
     ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-           summarize_output,summarize_output,"[setup:master:#{master.dnsName}","]\n")
+           summarize_stdout,summarize_stderr,"[setup:master:#{master.dnsName}","]\n")
   end
 
   def launch_slaves
@@ -530,9 +531,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     until_ssh_able(slaves)
     slaves.each {|slave|
       scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
-      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
+      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}",consume_stdout,consume_output,nil,nil)
       ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-             summarize_output,summarize_output,"[setup:rs:#{slave.dnsName}","]\n")
+             summarize_stdout,summarize_stderr,"[setup:rs:#{slave.dnsName}","]\n")
     }
   end
 
@@ -565,7 +566,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     }
   end
 
-  def run_test(test,stdout_line_reader = lambda{|line| puts line},stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
+  def run_test(test,stdout_line_reader = lambda{|line,channel| puts line},stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
     #fixme : fix hardwired version (first) then path to hadoop (later)
     ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop-0.20-tm-2/hadoop-test-0.20-tm-2.jar #{test}",
         stdout_line_reader,
@@ -573,7 +574,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def ssh_to(host,command,
-             stdout_line_reader = lambda{|line| puts line},
+             stdout_line_reader = lambda{|line,channel| puts line},
              stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
              begin_output = nil,
              end_output = nil)
@@ -585,7 +586,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   # with supplied anonymous functions (puts by default)
   # to a specific host (master by default).
   def ssh(command,
-          stdout_line_reader = lambda{|line| puts line},
+          stdout_line_reader = lambda{|line,channel| puts line},
           stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
           host = self.master.dnsName,
           begin_output = nil,
@@ -617,7 +618,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           puts "error: could not execute command '#{command}'" unless success
         end
         channel.on_data do |ch, data|
-          stdout_line_reader.call(data)
+          stdout_line_reader.call(data,channel)
           # example of how to talk back to server.
           #          channel.send_data "something for stdin\n"
         end
@@ -686,7 +687,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       connected = false
       until connected == true
         begin
-          ssh_to(instance.dnsName,"true",consume_output,consume_output,nil,nil)
+          ssh_to(instance.dnsName,"true",consume_stdout,consume_output,nil,nil)
           connected = true
         rescue Errno::ECONNREFUSED
           if @debug_level > 0
@@ -703,13 +704,26 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     }
   end
 
-  def consume_output 
-    #output one '.' per line.
+  def consume_stdout 
+    #simply ignore line.
+    return lambda{|line,channel|
+    }
+  end
+
+  def consume_stderr
+    #simply ignore line.
     return lambda{|line|
     }
   end
 
-  def summarize_output 
+  def summarize_stdout
+    #output one '.' per line.
+    return lambda{|line,channel|
+      putc "."
+    }
+  end
+
+  def summarize_stderr
     #output one '.' per line.
     return lambda{|line|
       putc "."
