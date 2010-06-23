@@ -19,7 +19,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
   @@init_script = "hbase-ec2-init-remote.sh"
 
-  attr_reader :master, :slaves, :zks, :zone
+  attr_reader :master, :slaves, :zks, :zone, :zk_image_name, :master_image_name, :slave_image_name
 
   def initialize( name, options = {} )
     raise HClusterStartError, 
