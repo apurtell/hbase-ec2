@@ -200,11 +200,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       options[:user] = user
     end
 
-    #echo "CREATING AND REGISTERING IMAGE: ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml"
-    puts "VERSION: #{hbase_version}"
     image_name = "hbase-#{hbase_version}-#{arch}-#{user}"
-    puts "image_name: #{image_name}"
-
     existing_image = describe_images({:owner_id => @owner_id}).imagesSet.item.detect {
       |image| image.name == image_name
     }
@@ -214,6 +210,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       return existing_image.imageId
     end
 
+    puts "Creating and registering image: #{image_name}"
     puts "Starting a AMI with ID: #{@@default_base_ami_image}."
     
     image_builder = do_launch({
