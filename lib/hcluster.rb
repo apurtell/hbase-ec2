@@ -181,7 +181,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     nil
   end
 
-  def create_image(hbase_version = "0.20-tm-2",slave_instance_type = nil,user = "ekoontz",s3_bucket = "ekoontz-amis")
+  def create_image(hbase_version = "0.20-tm-2",
+                   hadoop_version = hbase_version,
+                   slave_instance_type = nil,user = "ekoontz",s3_bucket = "ekoontz-amis")
     #...
     # allow override of SLAVE_INSTANCE_TYPE from the command line 
     #[ ! -z $1 ] && SLAVE_INSTANCE_TYPE=$1
@@ -211,8 +213,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     image_name = "hbase-#{hbase_version}-#{arch}-#{user}"
     puts "image_name: #{image_name}"
 
-    puts "ec2-register -n #{image_name} #{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
-
     existing_image = describe_images({:owner_id => @owner_id}).imagesSet.item.detect {
       |image| image.name == image_name
     }
@@ -241,14 +241,21 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
     
     # Copy private key and certificate (for bundling image)
-    #scp $SSH_OPTS $EC2_PRIVATE_KEY "root@$HOSTNAME:/mnt"
-    #scp $SSH_OPTS $EC2_CERT "root@$HOSTNAME:/mnt"
-    
-    # Connect to it
-    #ssh $SSH_OPTS "root@$HOSTNAME" "sh -c \"INSTANCE_TYPE=$type ARCH=$arch HBASE_URL=$HBASE_URL HADOOP_URL=$HADOOP_URL LZO_URL=$LZO_URL JAVA_URL=$JAVA_URL /mnt/create-hbase-image-remote\""
+    scp_to(image_builder_hostname,"#{ENV['HOME']}/.ec2/root.pem","/mnt")
+    scp_to(image_builder_hostname,"#{ENV['HOME']}/.ec2/cert.pem","/mnt")
+
+    puts "running create-hbase-image-remote on image builder: #{image_builder_hostname}.."
+    hbase_url = "http://tm-files.s3.amazonaws.com/hbase/hbase-#{hbase_version}.tar.gz"
+    hadoop_url = "http://tm-files.s3.amazonaws.com/hadoop/hadoop-#{hadoop_version}.tar.gz"
+    lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-#{hadoop_version}.tar.gz"
+    java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
+    puts "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\""
+    ssh_to(image_builder_hostname,"sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"")
+
+    #    ssh_to(image_builder_hostname,"sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"")
 
     # Register image
-    
+    puts "ec2-register -n #{image_name} #{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
     #ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml
 
     puts "image registered; shutting down image-builder."
