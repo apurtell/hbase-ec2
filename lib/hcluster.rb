@@ -2,7 +2,6 @@
 require 'monitor'
 require 'net/ssh'
 require 'net/scp'
-require 'socket'
 require 'AWS'
 
 def trim(string = "")
