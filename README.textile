@@ -31,7 +31,7 @@ $ irb
 ]
 >> load 'hcluster.rb'
 => true
->> cluster = AWS::EC2::Base::HCluster.new("hdfs")
+>> cluster = AWS::EC2::Base::HCluster.new("hdfs",{:zk_image_name => "hbase-0.20-tm-2-i386-ekoontz",:master_image_name => "hbase-0.20-tm-2-x86_64-ekoontz", :slave_image_name => "hbase-0.20-tm-2-x86_64-ekoontz"})
 => #<AWS::EC2::Base::HCluster::TestDFSIO:0x102eb3130 @master_key_name="root", 
    ...
 >> cluster.launch
