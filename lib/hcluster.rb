@@ -18,7 +18,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
   @@init_script = "hbase-ec2-init-remote.sh"
 
-  attr_reader :master, :slaves, :zks, :zone, :zk_image_name, :master_image_name, :slave_image_name
+  @@default_base_ami_image = "ami-48aa4921"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
+  @@m1_small_ami_image = "ami-f61dfd9f"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
+  @@c1_small_ami_image = "ami-f61dfd9f"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
+
+  attr_reader :master, :slaves, :zks, :zone, :zk_image_name, :master_image_name, :slave_image_name, :owner_id
 
   def initialize( name, options = {} )
     raise HClusterStartError, 
@@ -172,7 +176,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   end
 
-  def create_image(name,hbase_version,slave_instance_type = nil,user = nil,s3_bucket = "my-bucket")
+  def my_images
+    describe_images({:owner_id => owner_id}).imagesSet.item.each {|image| puts "#{image.name}: #{image.imageId}"}
+    nil
+  end
+
+  def create_image(hbase_version = "0.20-tm-2",slave_instance_type = nil,user = "ekoontz",s3_bucket = "ekoontz-amis")
     #...
     # allow override of SLAVE_INSTANCE_TYPE from the command line 
     #[ ! -z $1 ] && SLAVE_INSTANCE_TYPE=$1
@@ -198,46 +207,38 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
 
     #echo "CREATING AND REGISTERING IMAGE: ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml"
-    puts "ec2-register -n hbase-#{hbase_version}-#{arch}-#{user} #{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
+    puts "VERSION: #{hbase_version}"
+    image_name = "hbase-#{hbase_version}-#{arch}-#{user}"
+    puts "image_name: #{image_name}"
 
-    #AMI_IMAGE=`ec2-describe-images $TOOL_OPTS -a | grep $S3_BUCKET | grep hbase | grep $HBASE_VERSION-$arch | grep available | awk '{print $2}'`
+    puts "ec2-register -n #{image_name} #{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
+
+    existing_image = describe_images({:owner_id => @owner_id}).imagesSet.item.detect {
+      |image| image.name == image_name
+    }
+
+    if existing_image
+      puts "Existing_image: #{existing_image.imageId} already registered for image name #{image_name}. Call deregister_image(:image_id => '#{existing_image.imageId}'), if desired."
+      return existing_image.imageId
+    end
+
+    puts "Starting a AMI with ID: #{@@default_base_ami_image}."
     
-    #[ ! -z $AMI_IMAGE ] && echo "AMI already registered, use: ec2-deregister $AMI_IMAGE" && exit 1
-    
-    #echo "Starting a AMI with ID $BASE_AMI_IMAGE."
-    #OUTPUT=`ec2-run-instances $BASE_AMI_IMAGE $TOOL_OPTS -k root -t $type`
-    #BOOTING_INSTANCE=`echo $OUTPUT | awk '{print $6}'`
-    
-    #echo "Instance is $BOOTING_INSTANCE."
-    
-    #echo "Polling server status"
-    #while true; do
-    #  printf "."
-    #  HOSTNAME=`ec2-describe-instances $TOOL_OPTS $BOOTING_INSTANCE | grep running | awk '{print $4}'`
-    #  if [ ! -z $HOSTNAME ]; then
-    #    break;
-    #  fi
-    #  sleep 1
-    #done
-    #echo "The server is available at $HOSTNAME."
-    #while true; do
-    #  REPLY=`ssh $SSH_OPTS "root@$HOSTNAME" 'echo "hello"'`
-    #  if [ ! -z $REPLY ]; then
-    #   break;
-    #  fi
-    #  sleep 5
-    #done
-    
-    #echo "Copying scripts."
-    
-    # Copy setup scripts
-    #scp $SSH_OPTS "$bin"/hbase-ec2-env.sh "root@$HOSTNAME:/mnt"
-    #scp $SSH_OPTS "$bin"/functions.sh "root@$HOSTNAME:/mnt"
-    #if [ -f "$bin"/credentials.sh ] ; then
-    #  scp $SSH_OPTS "$bin"/credentials.sh "root@$HOSTNAME:/mnt"
-    #fi
-    #scp $SSH_OPTS "$bin"/image/create-hbase-image-remote "root@$HOSTNAME:/mnt"
-    #scp $SSH_OPTS "$bin"/image/ec2-run-user-data "root@$HOSTNAME:/etc/init.d"
+    image_builder = do_launch({
+                                :image_id => @@default_base_ami_image,
+                                :key_name => "root"
+                              },"image-builder")[0]
+
+    until_ssh_able([image_builder])
+    puts "Copying scripts."
+
+    image_builder_hostname = image_builder.dnsName
+
+    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-env.sh","/mnt")
+    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
+    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/credentials.sh","/mnt")
+    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
+    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
     
     # Copy private key and certificate (for bundling image)
     #scp $SSH_OPTS $EC2_PRIVATE_KEY "root@$HOSTNAME:/mnt"
@@ -245,12 +246,18 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     
     # Connect to it
     #ssh $SSH_OPTS "root@$HOSTNAME" "sh -c \"INSTANCE_TYPE=$type ARCH=$arch HBASE_URL=$HBASE_URL HADOOP_URL=$HADOOP_URL LZO_URL=$LZO_URL JAVA_URL=$JAVA_URL /mnt/create-hbase-image-remote\""
-    
+
     # Register image
     
     #ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml
-    
-    #echo "Terminate with: ec2-terminate-instances $BOOTING_INSTANCE"
+
+    puts "image registered; shutting down image-builder."
+#    terminate_instances({
+#                          :instance_id => image_builder.instanceId
+#                        })
+
+    image_builder.dnsName
+   
     
   end
 
