@@ -42,9 +42,9 @@ $ irb
    ...
 >> cluster.launch
 [launch:zk.........................]
-[setup:zk.]
+[setup:zk:ec2-67-202-23-72.compute-1.amazonaws.com.]
 [launch:master.......................]
-[setup:master...................................................]
+[setup:master:ec2-184-73-28-132.compute-1.amazonaws.com...................................................]
 [launch:rs....................]
 [setup:rs:ec2-184-73-7-119.compute-1.amazonaws.com....................................]
 [setup:rs:ec2-184-73-12-72.compute-1.amazonaws.com....................................]
