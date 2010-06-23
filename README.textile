@@ -16,6 +16,9 @@ export AMAZON_ACCESS_KEY_ID=...
 export AMAZON_SECRET_ACCESS_KEY=...
 export AWS_ACCOUNT_ID=...
 
+* A EC2 key pair called "root". This should be stored in your home directory 
+in @~/.ec2/root.pem@.
+
 h1. Downloading hbase-ec2
 
 pre. 
