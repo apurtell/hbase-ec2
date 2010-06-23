@@ -175,6 +175,78 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def HCluster.create_image(name)
     #...
+    # allow override of SLAVE_INSTANCE_TYPE from the command line 
+#[ ! -z $1 ] && SLAVE_INSTANCE_TYPE=$1
+
+# Import variables
+#bin=`dirname "$0"`
+#bin=`cd "$bin"; pwd`
+#. "$bin"/hbase-ec2-env.sh
+
+#type=$SLAVE_INSTANCE_TYPE
+#arch=$SLAVE_ARCH
+
+#echo "INSTANCE_TYPE is $type"
+#echo "ARCH is $arch"
+
+#if [ ! -z $USER ]; then
+#    USER="-$USER"
+#fi
+
+#echo "CREATING AND REGISTERING IMAGE: ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml"
+
+#AMI_IMAGE=`ec2-describe-images $TOOL_OPTS -a | grep $S3_BUCKET | grep hbase | grep $HBASE_VERSION-$arch | grep available | awk '{print $2}'`
+
+#[ ! -z $AMI_IMAGE ] && echo "AMI already registered, use: ec2-deregister $AMI_IMAGE" && exit 1
+
+#echo "Starting a AMI with ID $BASE_AMI_IMAGE."
+#OUTPUT=`ec2-run-instances $BASE_AMI_IMAGE $TOOL_OPTS -k root -t $type`
+#BOOTING_INSTANCE=`echo $OUTPUT | awk '{print $6}'`
+
+#echo "Instance is $BOOTING_INSTANCE."
+
+#echo "Polling server status"
+#while true; do
+#  printf "."
+#  HOSTNAME=`ec2-describe-instances $TOOL_OPTS $BOOTING_INSTANCE | grep running | awk '{print $4}'`
+#  if [ ! -z $HOSTNAME ]; then
+#    break;
+#  fi
+#  sleep 1
+#done
+#echo "The server is available at $HOSTNAME."
+#while true; do
+#  REPLY=`ssh $SSH_OPTS "root@$HOSTNAME" 'echo "hello"'`
+#  if [ ! -z $REPLY ]; then
+#   break;
+#  fi
+#  sleep 5
+#done
+
+#echo "Copying scripts."
+
+# Copy setup scripts
+#scp $SSH_OPTS "$bin"/hbase-ec2-env.sh "root@$HOSTNAME:/mnt"
+#scp $SSH_OPTS "$bin"/functions.sh "root@$HOSTNAME:/mnt"
+#if [ -f "$bin"/credentials.sh ] ; then
+#  scp $SSH_OPTS "$bin"/credentials.sh "root@$HOSTNAME:/mnt"
+#fi
+#scp $SSH_OPTS "$bin"/image/create-hbase-image-remote "root@$HOSTNAME:/mnt"
+#scp $SSH_OPTS "$bin"/image/ec2-run-user-data "root@$HOSTNAME:/etc/init.d"
+
+# Copy private key and certificate (for bundling image)
+#scp $SSH_OPTS $EC2_PRIVATE_KEY "root@$HOSTNAME:/mnt"
+#scp $SSH_OPTS $EC2_CERT "root@$HOSTNAME:/mnt"
+
+# Connect to it
+#ssh $SSH_OPTS "root@$HOSTNAME" "sh -c \"INSTANCE_TYPE=$type ARCH=$arch HBASE_URL=$HBASE_URL HADOOP_URL=$HADOOP_URL LZO_URL=$LZO_URL JAVA_URL=$JAVA_URL /mnt/create-hbase-image-remote\""
+
+# Register image
+
+#ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml
+
+#echo "Terminate with: ec2-terminate-instances $BOOTING_INSTANCE"
+
   end
 
   def HCluster.status
