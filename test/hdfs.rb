@@ -11,7 +11,7 @@ def dump_hash(hash)
 end
 
 class TestHCluster < Test::Unit::TestCase
-  @@security_group = "hdfs"
+  @@security_group = "hdfs-unit-test"
   @@cluster = AWS::EC2::Base::HCluster.new(@@security_group)
 
   def setup
