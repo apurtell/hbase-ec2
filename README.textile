@@ -1,4 +1,4 @@
-hbase-ec2 is a toolset to help manage a set of "Amazon EC2":http://aws.amazon.com/ instances 
+hbase-ec2 is a "Ruby":http://ruby-lang.org library to help manage a set of "Amazon EC2":http://aws.amazon.com/ instances 
 as a single "HBase":http://hbase.apache.org cluster.
 
 hbase-ec2 is currently supplied as a set of ruby files that currently is :
@@ -8,7 +8,10 @@ hbase-ec2 is currently supplied as a set of ruby files that currently is :
 
 h1. Prerequisites
 
+* "Net::SSH":http://net-ssh.rubyforge.org. You can install this with @gem install net-ssh@.
+* "Net::SCP":http://net-scp.rubyforge.org. You can install this with @gem install net-scp@.
 * "AWS::EC2":http://amazon-ec2.rubyforge.org. You can install this with @gem install amazon-ec2@.
+* @export RUBYOPT="rubygems"@
 * An Amazon EC2 account. You must add the following to your environment prior to starting irb:
 
 pre. 
