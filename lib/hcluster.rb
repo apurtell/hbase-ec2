@@ -173,6 +173,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   end
 
+  def HCluster.create_image(name)
+    #...
+  end
+
   def HCluster.status
     if @@clusters.size > 0
       instances = @@clusters[@@clusters.first[0]].describe_instances
