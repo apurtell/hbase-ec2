@@ -173,21 +173,24 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   end
 
-  def HCluster.create_image(name)
+  def create_image(name,slave_instance_type = nil)
     #...
     # allow override of SLAVE_INSTANCE_TYPE from the command line 
-#[ ! -z $1 ] && SLAVE_INSTANCE_TYPE=$1
+    #[ ! -z $1 ] && SLAVE_INSTANCE_TYPE=$1
+    if slave_instance_type == nil
+      slave_instance_type = @rs_instance_type
+    end
 
 # Import variables
 #bin=`dirname "$0"`
 #bin=`cd "$bin"; pwd`
 #. "$bin"/hbase-ec2-env.sh
 
-#type=$SLAVE_INSTANCE_TYPE
-#arch=$SLAVE_ARCH
+    type=slave_instance_type
+    arch=@slave_arch
 
-#echo "INSTANCE_TYPE is $type"
-#echo "ARCH is $arch"
+    puts "INSTANCE_TYPE is #{type}"
+    puts "ARCH is #{arch}"
 
 #if [ ! -z $USER ]; then
 #    USER="-$USER"
@@ -366,7 +369,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           end
         rescue AWS::InvalidInstanceIDNotFound
           wait = true
-          puts "watch(#{name}): instance not found; will retry."
+          puts "watch(#{name}): instance '#{name}' not found (might be transitory problem; will retry.)"
         end
       }
       if wait == true
