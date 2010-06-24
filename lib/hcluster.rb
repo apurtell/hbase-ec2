@@ -18,9 +18,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
   @@init_script = "hbase-ec2-init-remote.sh"
 
-  @@default_base_ami_image = "ami-48aa4921"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
-  @@m1_small_ami_image = "ami-f61dfd9f"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
-  @@c1_small_ami_image = "ami-f61dfd9f"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
+  @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
+  @@m1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
+  @@c1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
 
   attr_reader :master, :slaves, :zks, :zone, :zk_image_name, :master_image_name, :slave_image_name, :owner_id
 
@@ -242,7 +242,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     ssh_to(image_builder_hostname,
            "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"",
            lambda{|line,channel|
-#             puts "i-b-output: #{line}"
              if line =~ /Do you agree to the above license terms/
                puts " (create_image: consenting to license terms agreement)"
                channel.send_data "yes\n"
