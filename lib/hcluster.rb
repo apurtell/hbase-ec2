@@ -215,7 +215,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     
     image_builder = do_launch({
                                 :image_id => @@default_base_ami_image,
-                                :key_name => "root"
+                                :key_name => "root",
+                                :instance_type => "m1.large"
                               },"image-builder")[0]
 
     puts "Copying scripts."
@@ -241,14 +242,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\""
     ssh_to(image_builder_hostname,
            "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"",
-           lambda{|line,channel|
-             if line =~ /Do you agree to the above license terms/
-               puts " (create_image: consenting to license terms agreement)"
-               channel.send_data "yes\n"
-             end
-           })
-
-    #    ssh_to(image_builder_hostname,"sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"")
+           image_output_handler)
 
     # Register image
     puts "ec2-register -n #{image_name} #{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
@@ -262,6 +256,22 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     image_builder.dnsName
    
     
+  end
+
+  def image_output_handler
+    #includes code to get past Sun/Oracle's JDK License consent prompts.
+    debug = false
+    lambda{|line,channel|
+      if (debug == true)
+        puts line
+      end
+      if line =~ /Do you agree to the above license terms/
+        channel.send_data "yes\n"
+      end
+      if line =~ /Press Enter to continue/
+        channel.send_data "\n"
+      end
+    }
   end
 
   def HCluster.status
@@ -683,7 +693,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       connected = false
       until connected == true
         begin
-          ssh_to(instance.dnsName,"true",consume_stdout,consume_output,nil,nil)
+          ssh_to(instance.dnsName,"true",consume_stdout,consume_stderr,nil,nil)
           connected = true
         rescue Errno::ECONNREFUSED
           if @debug_level > 0
