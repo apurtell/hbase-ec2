@@ -487,13 +487,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "setup_aux() started.."
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
     #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
-    puts "wating for sshability for: #{aux.dnsName}.."
     until_ssh_able([aux])
-    puts "ssh-able now."
     scp_to(aux.dnsName,init_script,"/root/#{@@init_script}")
     ssh_to(aux.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
     ssh_to(aux.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-           echo_output,echo_stderr,"[setup:aux:#{aux.dnsName}","]\n")
+           summarize_output,summarize_output,"[setup:aux:#{aux.dnsName}","]\n")
   end
 
   def terminate_zookeepers
