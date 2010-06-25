@@ -19,7 +19,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
   @@init_script = "hbase-ec2-init-remote.sh"
 
-  attr_reader :master, :slaves, :zks, :zone, :zk_image_name, :master_image_name, :slave_image_name
+  attr_reader :master, :slaves, :aux, :zks, :zone, :zk_image_name, :master_image_name, :slave_image_name
 
   def initialize( name, options = {} )
     raise HClusterStartError, 
@@ -47,6 +47,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options = { 
       :num_regionservers => 5,
       :num_zookeepers => 1,
+      :num_aux => 1,
       :zk_image_name => "hbase-0.20-tm-2-#{@zk_arch}-ekoontz",
       :master_image_name => "hbase-0.20-tm-2-#{@master_arch}-ekoontz",
       :slave_image_name => "hbase-0.20-tm-2-#{@slave_arch}-ekoontz",
@@ -58,6 +59,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @name = name
     @num_regionservers = options[:num_regionservers]
     @num_zookeepers = options[:num_zookeepers]
+    @num_aux = options[:num_aux]
     @debug_level = options[:debug_level]
 
     @@clusters[name] = self
@@ -65,6 +67,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @zks = []
     @master = nil
     @slaves = []
+    @aux = nil
     @ssh_input = []
 
     @zone = "us-east-1a"
@@ -78,6 +81,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @zk_security_group = @name + "-zk"
     @rs_security_group = @name
     @master_security_group = @name + "-master"
+    @aux_security_group = @name + "-aux"
 
     #machine instance types
     @zk_instance_type = "m1.small"
@@ -108,6 +112,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     retval['name'] = @name
     if @master
       retval['master'] = @master.instanceId
+    end
+    if @aux
+      retval['aux'] = @aux.instanceId
     end
     retval
   end
@@ -155,6 +162,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
               @dnsName = @master.dnsName
               @launchTime = @master.launchTime
             end
+          else
+            if (security_group == (@name + "-aux"))
+              if ec2_instance_set.instancesSet.item[0].instanceState.name != 'terminated'
+                @aux = ec2_instance_set.instancesSet.item[0]
+              end
+            end
           end
         end
       end
@@ -201,6 +214,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     launch_zookeepers
     launch_master
     launch_slaves
+    launch_aux
 
     # if threaded, we would set to "pending" and then 
     # use join to determine when state should transition to "running".
@@ -214,6 +228,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     found_master = false
     found_rs = false
     found_zk = false
+    found_aux = false
     groups['securityGroupInfo']['item'].each { |group| 
       if group['groupName'] =~ /^#{@name}$/
         found_rs = true
@@ -224,7 +239,18 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       if group['groupName'] =~ /^#{@name}-zk$/
         found_zk = true
       end
+      if group['groupName'] =~ /^#{@name}-aux$/
+        found_aux = true
+      end
     }
+
+    if (found_aux == false) 
+      puts "creating new security group: #{@name}-aux.."
+      create_security_group({
+        :group_name => "#{@name}-aux",
+        :group_description => "Group for HBase Auxiliaries."
+      })
+    end
 
     if (found_rs == false) 
       puts "creating new security group: #{@name}.."
@@ -232,7 +258,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         :group_name => "#{@name}",
         :group_description => "Group for HBase Slaves."
       })
-      puts "..done"
     end
 
     if (found_master == false) 
@@ -252,6 +277,40 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       })
       puts "..done"
     end
+
+    # allow ssh from each..
+    ["#{@name}","#{@name}-aux","#{@name}-master","#{@name}-zk"].each {|group|
+      begin
+        authorize_security_group_ingress(
+                                         {
+                                           :group_name => group,
+                                           :from_port => 22,
+                                           :to_port => 22,
+                                           :cidr_ip => "0.0.0.0/0",
+                                           :ip_protocol => "tcp"
+                                         }
+                                         )
+      rescue AWS::InvalidPermissionDuplicate
+        # authorization already exists - no problem.
+      end
+
+      #reciprocal access for each security group.
+      ["#{@name}","#{@name}-aux","#{@name}-master","#{@name}-zk"].each {|other_group|
+        if (group != other_group)
+          begin
+            authorize_security_group_ingress(
+                                             {
+                                               :group_name => group,
+                                               :source_security_group_name => other_group
+                                             }
+                                             )
+          rescue AWS::InvalidPermissionDuplicate
+            # authorization already exists - no problem.
+          end
+        end
+      }
+    }
+
   end
 
   def do_launch(options,name="",on_boot = nil)
@@ -342,37 +401,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     trim(retval)
   end
 
-  def terminate_zookeepers
-    @zks.each { |zk|
-      options = {}
-      if zk.instanceId
-        options[:instance_id] = zk.instanceId
-        puts "terminating zookeeper: #{zk.instanceId}"
-        terminate_instances(options)
-      end
-    }
-  end
-
-  def terminate_slaves
-    @slaves.each { |slave|
-      if slave.instanceId
-        options = {}
-        options[:instance_id] = slave.instanceId
-        puts "terminating regionserver: #{slave.instanceId}"
-        terminate_instances(options)
-      end
-    }
-  end
-
-  def terminate_master
-    if @master && @master.instanceId
-      options = {}
-      options[:instance_id] = @master.instanceId
-      puts "terminating master: #{@master.instanceId}"
-      terminate_instances(options)
-    end
-  end
-
   def launch_master
     options = {}
     master_img_id = master_image['imageId']
@@ -392,7 +420,32 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @master = @master_instances[0]
   end
   
-  # 'masters', but always only one master.
+  def launch_slaves
+    options = {}
+    rs_img_id = regionserver_image['imageId']
+    options[:image_id] = rs_img_id
+    options[:min_count] = @num_regionservers
+    options[:max_count] = @num_regionservers
+    options[:security_group] = @rs_security_group
+    options[:instance_type] = @rs_instance_type
+    options[:key_name] = @rs_key_name
+    options[:availability_zone] = @zone
+    @slaves = do_launch(options,"rs",lambda{|instances|setup_slaves(instances)})
+  end
+
+  def launch_aux
+    options = {}
+    rs_img_id = regionserver_image['imageId']
+    options[:image_id] = rs_img_id
+    options[:min_count] = 1
+    options[:max_count] = 1
+    options[:security_group] = @aux_security_group
+    options[:instance_type] = @rs_instance_type
+    options[:key_name] = @rs_key_name
+    options[:availability_zone] = @zone
+    @aux = do_launch(options,"aux",lambda{|instances|setup_aux(instances[0])})[0]
+  end
+
   def setup_master(master)
     #cluster's dnsName is same as master's.
     @dnsName = master.dnsName
@@ -416,19 +469,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
            summarize_output,summarize_output,"[setup:master:#{master.dnsName}","]\n")
   end
 
-  def launch_slaves
-    options = {}
-    rs_img_id = regionserver_image['imageId']
-    options[:image_id] = rs_img_id
-    options[:min_count] = @num_regionservers
-    options[:max_count] = @num_regionservers
-    options[:security_group] = @rs_security_group
-    options[:instance_type] = @rs_instance_type
-    options[:key_name] = @rs_key_name
-    options[:availability_zone] = @zone
-    @slaves = do_launch(options,"rs",lambda{|instances|setup_slaves(instances)})
-  end
-
   def setup_slaves(slaves) 
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
     #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
@@ -439,6 +479,60 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
              summarize_output,summarize_output,"[setup:rs:#{slave.dnsName}","]\n")
     }
+  end
+
+  def setup_aux(aux) 
+    puts "setup_aux() started.."
+    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
+    #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
+    puts "wating for sshability for: #{aux.dnsName}.."
+    until_ssh_able([aux])
+    puts "ssh-able now."
+    scp_to(aux.dnsName,init_script,"/root/#{@@init_script}")
+    ssh_to(aux.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
+    ssh_to(aux.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+           echo_output,echo_stderr,"[setup:aux:#{aux.dnsName}","]\n")
+  end
+
+  def terminate_zookeepers
+    @zks.each { |zk|
+      options = {}
+      if zk.instanceId
+        options[:instance_id] = zk.instanceId
+        puts "terminating zookeeper: #{zk.instanceId}"
+        terminate_instances(options)
+      end
+    }
+  end
+
+  def terminate_slaves
+    @slaves.each { |slave|
+      if slave.instanceId
+        options = {}
+        options[:instance_id] = slave.instanceId
+        puts "terminating regionserver: #{slave.instanceId}"
+        terminate_instances(options)
+      end
+    }
+  end
+
+  def terminate_aux
+    aux = @aux
+    if aux && aux.instanceId
+      options = {}
+      options[:instance_id] = aux.instanceId
+      puts "terminating auxiliary: #{aux.instanceId}"
+      terminate_instances(options)
+    end
+  end
+
+  def terminate_master
+    if @master && @master.instanceId
+      options = {}
+      options[:instance_id] = @master.instanceId
+      puts "terminating master: #{@master.instanceId}"
+      terminate_instances(options)
+    end
   end
 
   def describe_instances(options = {}) 
@@ -490,7 +584,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   # with supplied anonymous functions (puts by default)
   # to a specific host (master by default).
   def ssh(command,
-          stdout_line_reader = lambda{|line| puts line},
+          stdout_line_reader = echo_output,
           stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
           host = self.master.dnsName,
           begin_output = nil,
@@ -557,12 +651,17 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     terminate_zookeepers
     terminate_master
     terminate_slaves
+    terminate_aux
     @state = "terminated"
     status
   end
   
   def to_s
-    "HCluster '#{@name}' (state='#{@state}'): #{@num_regionservers} regionserver#{((@numregionservers == 1) && '') || 's'}; #{@num_zookeepers} zookeeper#{((@num_zookeepers == 1) && '') || 's'}."
+    retval = "HCluster '#{@name}' (state='#{@state}'): #{@num_regionservers} regionserver#{((@numregionservers == 1) && '') || 's'}; #{@num_zookeepers} zookeeper#{((@num_zookeepers == 1) && '') || 's'}"
+    if (@aux) 
+      retval = retval + "; 1 aux"
+    end
+    retval = retval + "."
   end
 
   private
@@ -605,6 +704,18 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           sleep 5
         end
       end
+    }
+  end
+
+  def echo_output 
+    return lambda{|line|
+      puts line
+    }
+  end
+
+  def echo_stderr 
+    return lambda{|line|
+      puts "(stderr): #{line}"
     }
   end
 
