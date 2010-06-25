@@ -407,27 +407,19 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def launch_master
     options = {}
-    master_img_id = master_image['imageId']
-    options[:image_id] = master_img_id
+    options[:image_id] = master_image['imageId'] 
     options[:min_count] = 1
     options[:max_count] = 1
     options[:security_group] = @master_security_group
     options[:instance_type] = @master_instance_type
     options[:key_name] = @master_key_name
     options[:availability_zone] = @zone
-
-    #only one master, but we'll use an array called "@master_instances" because
-    #run_instances() returns an array.
-
-    @master_instances = do_launch(options,"master",lambda{|instances| setup_master(instances[0])})
-
-    @master = @master_instances[0]
+    @master = do_launch(options,"master",lambda{|instances| setup_master(instances[0])})[0]
   end
   
   def launch_slaves
     options = {}
-    rs_img_id = regionserver_image['imageId']
-    options[:image_id] = rs_img_id
+    options[:image_id] = regionserver_image['imageId']
     options[:min_count] = @num_regionservers
     options[:max_count] = @num_regionservers
     options[:security_group] = @rs_security_group
@@ -439,8 +431,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def launch_aux
     options = {}
-    rs_img_id = regionserver_image['imageId']
-    options[:image_id] = rs_img_id
+    options[:image_id] = regionserver_image['imageId']
     options[:min_count] = 1
     options[:max_count] = 1
     options[:security_group] = @aux_security_group
