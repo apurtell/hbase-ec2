@@ -5,6 +5,8 @@ require 'net/scp'
 require 'socket'
 require 'AWS'
 
+EC2_ROOT_SSH_KEY = '/home/ghelmling/.aws/TM-AWS-5/id_rsa_root'
+
 def trim(string = "")
   string.gsub(/^\s+/,'').gsub(/\s+$/,'')
 end
@@ -386,7 +388,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       if (@debug_level > 0)
         puts "zk dnsname: #{zk.dnsName}"
       end
-      scp_to(zk.dnsName,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
+      scp_to(zk.dnsName,File.dirname(__FILE__) +"/../bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
              summarize_output,summarize_output,
@@ -457,13 +459,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     @master.state = "running"
     # <ssh key>
-    scp_to(master.dnsName,"#{ENV['HOME']}/.ec2/root.pem","/root/.ssh/id_rsa")
+    scp_to(master.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
     ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
     # </ssh key>
         
     # <master init script>
-    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
+    init_script = File.dirname(__FILE__) +"/../bin/#{@@init_script}"
     scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
     ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
@@ -472,10 +474,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def setup_slaves(slaves) 
-    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
+    init_script = File.dirname(__FILE__) +"/../bin/#{@@init_script}"
     #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
     until_ssh_able(slaves)
     slaves.each {|slave|
+      # <ssh key>
+      scp_to(slave.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
+      #FIXME: should be 400 probably.
+      ssh_to(slave.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
+      # </ssh key>
+
       scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
       ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
       ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
