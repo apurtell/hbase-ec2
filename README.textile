@@ -11,10 +11,11 @@ hbase-ec2 is currently supplied as a set of ruby files that currently is :
 
 h1. Prerequisites
 
+* @export RUBYOPT="rubygems"@
 * "AWS::EC2":http://amazon-ec2.rubyforge.org. You can install this with @gem install amazon-ec2@.
 * "Net::SSH":http://net-ssh.rubyforge.org. You can install this with @gem install net-ssh@.
 * "Net::SCP":http://net-scp.rubyforge.org. You can install this with @gem install net-scp@.
-* @export RUBYOPT="rubygems"@
+* OpenSSL support for Ruby. This might also be installed with your ruby, but on Ubuntu, I had to do: @apt-get install libruby-extras@.
 * An Amazon EC2 account. You must add the following to your environment prior to starting irb:
 
 pre. 

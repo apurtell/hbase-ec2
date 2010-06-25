@@ -9,6 +9,7 @@ NUM_SLAVES=$3
 EXTRA_PACKAGES=$4
 SECURITY_GROUPS=`wget -q -O - http://169.254.169.254/latest/meta-data/security-groups`
 IS_MASTER=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-master$"); if (a) print "true"; else print "false"; }'`
+IS_AUX=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-aux$"); if (a) print "true"; else print "false"; }'`
 if [ "$IS_MASTER" = "true" ]; then
  MASTER_HOST=`wget -q -O - http://169.254.169.254/latest/meta-data/local-hostname`
 fi
@@ -299,9 +300,11 @@ if [ "$IS_MASTER" = "true" ]; then
   "$HADOOP_HOME"/bin/hadoop-daemon.sh start jobtracker
   "$HBASE_HOME"/bin/hbase-daemon.sh start master
 else
-  "$HADOOP_HOME"/bin/hadoop-daemon.sh start datanode
-  "$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
-  "$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
+    if [ "$IS_AUX" != "true" ]; then
+	"$HADOOP_HOME"/bin/hadoop-daemon.sh start datanode
+	"$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
+	"$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
+    fi
 fi
 
 rm -f /var/ec2/ec2-run-user-data.*
