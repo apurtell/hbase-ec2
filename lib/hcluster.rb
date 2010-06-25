@@ -484,7 +484,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def setup_aux(aux) 
-    puts "setup_aux() started.."
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
     #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
     until_ssh_able([aux])
