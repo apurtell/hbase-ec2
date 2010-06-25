@@ -2,7 +2,6 @@
 require 'monitor'
 require 'net/ssh'
 require 'net/scp'
-require 'socket'
 require 'AWS'
 
 EC2_ROOT_SSH_KEY = '/home/ghelmling/.aws/TM-AWS-5/id_rsa_root'
