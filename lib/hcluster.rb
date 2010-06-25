@@ -19,7 +19,7 @@ end
 
 class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
-  @@init_script = "hbase-ec2-init-remote.sh"
+  @@remote_init_script = "hbase-ec2-init-remote.sh"
 
   attr_reader :master, :slaves, :aux, :zks, :zone, :zk_image_name, :master_image_name, :slave_image_name
 
@@ -456,16 +456,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # </ssh key>
         
     # <master init script>
-    init_script = File.dirname(__FILE__) +"/../bin/#{@@init_script}"
-    scp_to(master.dnsName,init_script,"/root/#{@@init_script}")
-    ssh_to(master.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
+    init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
+    scp_to(master.dnsName,init_script,"/root/#{@@remote_init_script}")
+    ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
-    ssh_to(master.dnsName,"sh /root/#{@@init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+    ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
            summarize_output,summarize_output,"[setup:master:#{master.dnsName}","]\n")
   end
 
   def setup_slaves(slaves) 
-    init_script = File.dirname(__FILE__) +"/../bin/#{@@init_script}"
+    init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
     #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
     until_ssh_able(slaves)
     slaves.each {|slave|
@@ -475,21 +475,30 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       ssh_to(slave.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
       # </ssh key>
 
-      scp_to(slave.dnsName,init_script,"/root/#{@@init_script}")
-      ssh_to(slave.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
-      ssh_to(slave.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+      scp_to(slave.dnsName,init_script,"/root/#{@@remote_init_script}")
+      ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
+      ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
              summarize_output,summarize_output,"[setup:rs:#{slave.dnsName}","]\n")
     }
   end
 
   def setup_aux(aux) 
-    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@init_script}"
-    #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
+    #NOTE:if setup process is multithreaded, setup_aux requires 
+    # master.dnsName and zookeeper_quorum to be known.
     until_ssh_able([aux])
-    scp_to(aux.dnsName,init_script,"/root/#{@@init_script}")
-    ssh_to(aux.dnsName,"chmod 700 /root/#{@@init_script}",consume_output,consume_output,nil,nil)
-    ssh_to(aux.dnsName,"sh /root/#{@@init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-           summarize_output,summarize_output,"[setup:aux:#{aux.dnsName}","]\n")
+    dnsName = aux.dnsName
+
+    # <ssh key>
+    scp_to(dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
+    #FIXME: should be 400 probably.
+    ssh_to(dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
+    # </ssh key>
+
+    init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@remote_init_script}"
+    scp_to(dnsName,init_script,"/root/#{@@remote_init_script}")
+    ssh_to(dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
+    ssh_to(dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+           summarize_output,summarize_output,"[setup:aux:#{dnsName}","]\n")
   end
 
   def terminate_zookeepers
