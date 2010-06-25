@@ -502,6 +502,17 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         terminate_instances(options)
       end
     }
+    @zks = []
+  end
+
+  def terminate_master
+    if @master && @master.instanceId
+      options = {}
+      options[:instance_id] = @master.instanceId
+      puts "terminating master: #{@master.instanceId}"
+      terminate_instances(options)
+    end
+    @master = nil
   end
 
   def terminate_slaves
@@ -513,25 +524,17 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         terminate_instances(options)
       end
     }
+    @slaves = []
   end
 
   def terminate_aux
-    aux = @aux
-    if aux && aux.instanceId
+    if @aux && @aux.instanceId
       options = {}
-      options[:instance_id] = aux.instanceId
-      puts "terminating auxiliary: #{aux.instanceId}"
+      options[:instance_id] = @aux.instanceId
+      puts "terminating auxiliary: #{@aux.instanceId}"
       terminate_instances(options)
     end
-  end
-
-  def terminate_master
-    if @master && @master.instanceId
-      options = {}
-      options[:instance_id] = @master.instanceId
-      puts "terminating master: #{@master.instanceId}"
-      terminate_instances(options)
-    end
+    @aux = nil
   end
 
   def describe_instances(options = {}) 
