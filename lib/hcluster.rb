@@ -4,7 +4,8 @@ require 'net/ssh'
 require 'net/scp'
 require 'AWS'
 
-EC2_ROOT_SSH_KEY = '/home/ghelmling/.aws/TM-AWS-5/id_rsa_root'
+#FIXME: move to yaml config file.
+EC2_ROOT_SSH_KEY = "#{ENV['HOME']}/.ec2/root.pem"
 
 def trim(string = "")
   string.gsub(/^\s+/,'').gsub(/\s+$/,'')
