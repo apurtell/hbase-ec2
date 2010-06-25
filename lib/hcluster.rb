@@ -47,7 +47,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options = { 
       :num_regionservers => 5,
       :num_zookeepers => 1,
-      :num_aux => 1,
+      :launch_aux => false,
       :zk_image_name => "hbase-0.20-tm-2-#{@zk_arch}-ekoontz",
       :master_image_name => "hbase-0.20-tm-2-#{@master_arch}-ekoontz",
       :slave_image_name => "hbase-0.20-tm-2-#{@slave_arch}-ekoontz",
@@ -59,7 +59,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @name = name
     @num_regionservers = options[:num_regionservers]
     @num_zookeepers = options[:num_zookeepers]
-    @num_aux = options[:num_aux]
+    @launch_aux = options[:launch_aux]
     @debug_level = options[:debug_level]
 
     @@clusters[name] = self
@@ -214,7 +214,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     launch_zookeepers
     launch_master
     launch_slaves
-    launch_aux
+    if @launch_aux
+      launch_aux
+    end
 
     # if threaded, we would set to "pending" and then 
     # use join to determine when state should transition to "running".
