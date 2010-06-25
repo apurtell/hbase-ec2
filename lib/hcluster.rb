@@ -585,8 +585,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   # with supplied anonymous functions (puts by default)
   # to a specific host (master by default).
   def ssh(command,
-          stdout_line_reader = echo_output,
-          stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
+          stdout_line_reader = echo_stdout,
+          stderr_line_reader = echo_stderr,
           host = self.master.dnsName,
           begin_output = nil,
           end_output = nil)
@@ -708,7 +708,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     }
   end
 
-  def echo_output 
+  def echo_stdout
     return lambda{|line|
       puts line
     }
@@ -721,7 +721,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def consume_output 
-    #output one '.' per line.
+    #don't print anything for each line.
     return lambda{|line|
     }
   end
