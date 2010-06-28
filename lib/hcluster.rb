@@ -197,35 +197,40 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     nil
   end
 
-  def create_image(hbase_version = "0.20-tm-2",
-                   hadoop_version = hbase_version,
-                   slave_instance_type = nil,user = "ekoontz",s3_bucket = "ekoontz-amis")
+  def create_image(options = {})
+    options = {
+      :hbase_version => "0.21.0-SNAPSHOT",
+      :hadoop_version => "0.22.0-SNAPSHOT",
+      :slave_instance_type => nil,
+      :user => "ekoontz",
+      :s3_bucket => "ekoontz-amis",
+      :debug => false
+    }.merge(options)
+    hbase_version = options[:hbase_version]
+    hadoop_version = options[:hadoop_version]
+    slave_instance_type = options[:slave_instance_type]
+    user = options[:user]
+    s3_bucket = options[:s3_bucket]
     #...
     # allow override of SLAVE_INSTANCE_TYPE from the command line 
     #[ ! -z $1 ] && SLAVE_INSTANCE_TYPE=$1
     if slave_instance_type == nil
       slave_instance_type = @rs_instance_type
     end
-
+    
     type=slave_instance_type
     arch=@slave_arch
-
-    options = {}
-
-    if user
-      options[:user] = user
-    end
-
+    
     image_name = "hbase-#{hbase_version}-#{arch}-#{user}"
     existing_image = describe_images({:owner_id => @owner_id}).imagesSet.item.detect {
       |image| image.name == image_name
     }
-
+    
     if existing_image
       puts "Existing_image: #{existing_image.imageId} already registered for image name #{image_name}. Call deregister_image(:image_id => '#{existing_image.imageId}'), if desired."
       return existing_image.imageId
     end
-
+    
     puts "Creating and registering image: #{image_name}"
     puts "Starting a AMI with ID: #{@@default_base_ami_image}."
     
@@ -234,12 +239,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                                 :key_name => "root",
                                 :instance_type => "m1.large"
                               },"image-builder")[0]
-
+    
     puts "Copying scripts."
     until_ssh_able([image_builder])
-
+    
     image_builder_hostname = image_builder.dnsName
-
+    
     scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
     scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
     scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
@@ -247,7 +252,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # Copy private key and certificate (for bundling image)
     scp_to(image_builder_hostname,"#{ENV['HOME']}/.ec2/root.pem","/mnt")
     scp_to(image_builder_hostname,"#{ENV['HOME']}/.ec2/cert.pem","/mnt")
-
+    
     puts "running create-hbase-image-remote on image builder: #{image_builder_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
     hbase_url = "http://ekoontz-tarballs.s3.amazonaws.com/hbase-#{hbase_version}-bin.tar.gz"
     hadoop_url = "http://ekoontz-tarballs.s3.amazonaws.com/hadoop-common-#{hadoop_version}.tar.gz"
@@ -255,25 +260,23 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
     ssh_to(image_builder_hostname,
            "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"",
-           image_output_handler)
-
+           image_output_handler(true))
+    
     # Register image
     puts "ec2-register -n #{image_name} #{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
     #ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml
-
-    puts "image registered; shutting down image-builder."
-    terminate_instances({
-                          :instance_id => image_builder.instanceId
-                        })
-
-    image_builder.dnsName
-   
     
+    puts "image registered; shutting down image-builder."
+    if (!(options['debug'] == true))
+      terminate_instances({
+                            :instance_id => image_builder.instanceId
+                          })
+    end
+    image_builder.dnsName
   end
 
-  def image_output_handler
+  def image_output_handler(debug)
     #includes code to get past Sun/Oracle's JDK License consent prompts.
-    debug = true
     lambda{|line,channel|
       if (debug == true)
         puts line
