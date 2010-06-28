@@ -272,19 +272,23 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
     ssh_to(image_builder_hostname,
            "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"",
-           image_output_handler(true))
+           image_output_handler(options[:debug]))
     
     # Register image
     puts "ec2-register -n #{image_name} #{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
     #ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml
     
-    puts "image registered; shutting down image-builder."
-    if (!(options['debug'] == true))
+    puts "image registered."
+    if (!(options[:debug] == true))
+      puts "shutting down image-builder #{image_builder.instanceId}"
       terminate_instances({
-                            :instance_id => image_builder.instanceId
+                            :instance_id => @image_builder.instanceId
                           })
+      @image_builder = nil
+    else
+      puts "not shutting down image builder: #{@image_builder.dnsName}"
     end
-    image_builder.dnsName
+    "(image name goes here)"
   end
 
   def image_output_handler(debug)
