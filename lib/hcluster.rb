@@ -206,6 +206,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :s3_bucket => "ekoontz-amis",
       :debug => false
     }.merge(options)
+
+    #cleanup any existing create_image instances.
+    if @image_builder
+      terminate_instances({
+                            :instance_id => @image_builder.instanceId
+                          })
+      @image_builder = nil
+    end
+
+
     hbase_version = options[:hbase_version]
     hadoop_version = options[:hadoop_version]
     slave_instance_type = options[:slave_instance_type]
@@ -239,6 +249,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                                 :key_name => "root",
                                 :instance_type => "m1.large"
                               },"image-builder")[0]
+
+    @image_builder = image_builder
     
     puts "Copying scripts."
     until_ssh_able([image_builder])
