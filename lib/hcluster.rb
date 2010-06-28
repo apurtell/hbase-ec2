@@ -240,9 +240,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     image_builder_hostname = image_builder.dnsName
 
-    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/hbase-ec2-env.sh","/mnt")
     scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
-    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/credentials.sh","/mnt")
     scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
     scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
     
@@ -250,14 +248,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     scp_to(image_builder_hostname,"#{ENV['HOME']}/.ec2/root.pem","/mnt")
     scp_to(image_builder_hostname,"#{ENV['HOME']}/.ec2/cert.pem","/mnt")
 
-    puts "running create-hbase-image-remote on image builder: #{image_builder_hostname}.."
-    hbase_url = "http://tm-files.s3.amazonaws.com/hbase/hbase-#{hbase_version}.tar.gz"
-    hadoop_url = "http://tm-files.s3.amazonaws.com/hadoop/hadoop-#{hadoop_version}.tar.gz"
+    puts "running create-hbase-image-remote on image builder: #{image_builder_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
+    hbase_url = "http://ekoontz-tarballs.s3.amazonaws.com/hbase-#{hbase_version}-bin.tar.gz"
+    hadoop_url = "http://ekoontz-tarballs.s3.amazonaws.com/hadoop-common-#{hadoop_version}.tar.gz"
     lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-#{hadoop_version}.tar.gz"
     java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
-    puts "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\""
     ssh_to(image_builder_hostname,
-           "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"",
+           "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"",
            image_output_handler)
 
     # Register image
@@ -265,9 +262,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     #ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml
 
     puts "image registered; shutting down image-builder."
-#    terminate_instances({
-#                          :instance_id => image_builder.instanceId
-#                        })
+    terminate_instances({
+                          :instance_id => image_builder.instanceId
+                        })
 
     image_builder.dnsName
    
@@ -276,7 +273,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def image_output_handler
     #includes code to get past Sun/Oracle's JDK License consent prompts.
-    debug = false
+    debug = true
     lambda{|line,channel|
       if (debug == true)
         puts line
@@ -555,7 +552,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # <ssh key>
     scp_to(master.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
-    ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_stdout,consume_stderr,nil,nil)
+    ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
     # </ssh key>
         
     # <master init script>
@@ -803,8 +800,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       connected = false
       until connected == true
         begin
-          ssh_to(instance.dnsName,"true",consume_stdout,consume_stderr,nil,nil)
+          ssh_to(instance.dnsName,"true",consume_output,consume_output,nil,nil)
           connected = true
+        rescue Net::SSH::AuthenticationFailed
+          if @debug_level > 0
+            puts "host: #{instance.dnsName} not ready yet - waiting.."
+          end
+          sleep 5
         rescue Errno::ECONNREFUSED
           if @debug_level > 0
             puts "host: #{instance.dnsName} not ready yet - waiting.."
