@@ -25,7 +25,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@m1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
   @@c1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
 
-  attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_name, :master_image_name, :slave_image_name, :aux_image_name, :owner_id
+  attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_name, :master_image_name, :slave_image_name, :aux_image_name, :owner_id,:image_creator
 
   def initialize( name, options = {} )
     raise HClusterStartError, 
@@ -208,11 +208,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     }.merge(options)
 
     #cleanup any existing create_image instances.
-    if @image_builder
+    if @image_creator
       terminate_instances({
-                            :instance_id => @image_builder.instanceId
+                            :instance_id => @image_creator.instanceId
                           })
-      @image_builder = nil
+      @image_creator = nil
     end
 
 
@@ -244,33 +244,33 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "Creating and registering image: #{image_name}"
     puts "Starting a AMI with ID: #{@@default_base_ami_image}."
     
-    image_builder = do_launch({
+    image_creator = do_launch({
                                 :image_id => @@default_base_ami_image,
                                 :key_name => "root",
                                 :instance_type => "m1.large"
                               },"image-builder")[0]
 
-    @image_builder = image_builder
+    @image_creator = image_creator
     
     puts "Copying scripts."
-    until_ssh_able([image_builder])
+    until_ssh_able([image_creator])
     
-    image_builder_hostname = image_builder.dnsName
+    image_creator_hostname = image_creator.dnsName
     
-    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
-    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
-    scp_to(image_builder_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
+    scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
+    scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
+    scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
     
     # Copy private key and certificate (for bundling image)
-    scp_to(image_builder_hostname,"#{ENV['HOME']}/.ec2/root.pem","/mnt")
-    scp_to(image_builder_hostname,"#{ENV['HOME']}/.ec2/cert.pem","/mnt")
+    scp_to(image_creator_hostname,"#{ENV['HOME']}/.ec2/root.pem","/mnt")
+    scp_to(image_creator_hostname,"#{ENV['HOME']}/.ec2/cert.pem","/mnt")
     
-    puts "running create-hbase-image-remote on image builder: #{image_builder_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
+    puts "running create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
     hbase_url = "http://ekoontz-tarballs.s3.amazonaws.com/hbase-#{hbase_version}-bin.tar.gz"
     hadoop_url = "http://ekoontz-tarballs.s3.amazonaws.com/hadoop-common-#{hadoop_version}.tar.gz"
     lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-#{hadoop_version}.tar.gz"
     java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
-    ssh_to(image_builder_hostname,
+    ssh_to(image_creator_hostname,
            "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"",
            image_output_handler(options[:debug]))
     
@@ -280,13 +280,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     
     puts "image registered."
     if (!(options[:debug] == true))
-      puts "shutting down image-builder #{image_builder.instanceId}"
+      puts "shutting down image-builder #{image_creator.instanceId}"
       terminate_instances({
-                            :instance_id => @image_builder.instanceId
+                            :instance_id => @image_creator.instanceId
                           })
-      @image_builder = nil
+      @image_creator = nil
     else
-      puts "not shutting down image builder: #{@image_builder.dnsName}"
+      puts "not shutting down image builder: #{@image_creator.dnsName}"
     end
     "(image name goes here)"
   end
