@@ -244,18 +244,18 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "Creating and registering image: #{image_name}"
     puts "Starting a AMI with ID: #{@@default_base_ami_image}."
     
-    image_creator = do_launch({
+    @image_creator = do_launch({
                                 :image_id => @@default_base_ami_image,
                                 :key_name => "root",
                                 :instance_type => "m1.large"
-                              },"image-builder")[0]
+                              },"image-creator")[0]
+    
 
-    @image_creator = image_creator
-    
+    image_creator_hostname = @image_creator.dnsName
+    puts "Started image creator: #{image_creator_hostname}"
+
     puts "Copying scripts."
-    until_ssh_able([image_creator])
-    
-    image_creator_hostname = image_creator.dnsName
+    until_ssh_able([@image_creator])
     
     scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
     scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
@@ -268,10 +268,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "running create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
     hbase_url = "http://ekoontz-tarballs.s3.amazonaws.com/hbase-#{hbase_version}-bin.tar.gz"
     hadoop_url = "http://ekoontz-tarballs.s3.amazonaws.com/hadoop-common-#{hadoop_version}.tar.gz"
-    lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-#{hadoop_version}.tar.gz"
+    lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-0.20-tm-2.tar.gz"
     java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
+
+    puts("sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{ENV['AWS_ACCOUNT_ID']} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} /mnt/create-hbase-image-remote\"")
+
     ssh_to(image_creator_hostname,
-           "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} /mnt/create-hbase-image-remote\"",
+           "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{ENV['AWS_ACCOUNT_ID']} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} /mnt/create-hbase-image-remote\"",
            image_output_handler(options[:debug]))
     
     # Register image
@@ -280,13 +283,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     
     puts "image registered."
     if (!(options[:debug] == true))
-      puts "shutting down image-builder #{image_creator.instanceId}"
+      puts "shutting down image-builder #{@image_creator.instanceId}"
       terminate_instances({
                             :instance_id => @image_creator.instanceId
                           })
       @image_creator = nil
     else
-      puts "not shutting down image builder: #{@image_creator.dnsName}"
+      puts "not shutting down image creator: #{@image_creator.dnsName}"
     end
     "(image name goes here)"
   end
@@ -662,6 +665,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       terminate_instances(options)
     end
     @aux = nil
+  end
+
+  def terminate_image_creator
+    if @image_creator && @image_creator['instanceId']
+      terminate_instances({:instance_id => @image_creator['instanceId']})
+    end
   end
 
   def describe_instances(options = {}) 
