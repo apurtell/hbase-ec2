@@ -117,7 +117,7 @@ cd ~root
 df -h
 ec2-bundle-vol -d /mnt -k /mnt/root.pem -c /mnt/cert.pem -u $AWS_ACCOUNT_ID -s 3072 -p hbase-$HBASE_VERSION-$arch -r $arch
 
-ec2-upload-bundle --secret-key $AWS_SECRET_ACCESS_KEY  --bucket $S3_BUCKET -m /mnt/hbase-$HBASE_VERSION-$arch.manifest.xml --access-key $AWS_ACCOUNT_ID
+ec2-upload-bundle --secret-key $AWS_SECRET_ACCESS_KEY  --bucket $S3_BUCKET -m /mnt/hbase-$HBASE_VERSION-$arch.manifest.xml --access-key $AWS_ACCESS_KEY_ID
 
 # End
 echo Done
