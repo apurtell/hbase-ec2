@@ -278,8 +278,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
            image_output_handler(options[:debug]))
     
     # Register image
-    puts "ec2-register -n #{image_name} #{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
-    #ec2-register $TOOL_OPTS -n hbase-$HBASE_VERSION-$arch$USER $S3_BUCKET/hbase-$HBASE_VERSION-$arch.manifest.xml
+    image_location = "#{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
+
+    puts "ec2-register -n #{image_name} #{image_location}"
+
+    register_image({
+                     :image_location => image_location
+                   })
     
     puts "image registered."
     if (!(options[:debug] == true))
