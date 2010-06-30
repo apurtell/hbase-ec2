@@ -261,11 +261,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     arch=@slave_arch
     
     image_name = "hbase-#{hbase_version}-#{arch}-#{user}"
-    puts "looking for image name: #{image_name}"
-    existing_image = get_image(image_name)
+    existing_image = find_owned_image(image_name)
 
     if existing_image
       puts "Existing_image: #{existing_image.imageId} already registered for image name #{image_name}. Call deregister_image(:image_id => '#{existing_image.imageId}'), if desired."
+
       return existing_image.imageId
     end
     
@@ -726,7 +726,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   #overrides parent: tries to find image using owner_id, which will be faster to iterate through (in .detect loop)
   # if not found, tries all images.
-  def describe_images(options,image_name = nil)
+  def describe_images(options,image_name = nil,search_all_visible_images = true)
     if image_name
       options = {
         :owner_id => @owner_id
@@ -738,9 +738,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         |image| image['name'] == image_name
       }
 
-      if (retval2 == nil)
+      if (retval2 == nil and search_all_visible_images == true)
         options.delete(:owner_id)
-        puts "image '#{image_name}' not found in owner {@owner_id}'s images; looking in all images (may take a while..)"
+        puts "image '#{image_name}' not found in owner #{@owner_id}'s images; looking in all images (may take a while..)"
         retval = super(options)
         #filter by image_name
         retval2 = retval['imagesSet']['item'].detect{
@@ -763,6 +763,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def master_image
     get_image(@master_image_name)
+  end
+
+  def find_owned_image(image_name)
+    return describe_images({:owner_id => @owner_id},image_name,false)
   end
 
   def get_image(image_name)
