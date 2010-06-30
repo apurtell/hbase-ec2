@@ -65,21 +65,21 @@ chkconfig --levels 0123456 gmond off
 echo "Installing Hadoop $HADOOP_VERSION."
 cd /usr/local
 wget -nv $HADOOP_URL
-tar xzf hadoop-common-$HADOOP_VERSION.tar.gz
-#rm -f hadoop-common-$HADOOP_VERSION.tar.gz
+tar xzf hadoop-$HADOOP_VERSION.tar.gz
+rm -f hadoop-$HADOOP_VERSION.tar.gz
 
 # Configure Hadoop
 echo "export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}
 export HADOOP_LOG_DIR=/mnt/hadoop/logs
 export HADOOP_SLAVE_SLEEP=1
-export HADOOP_OPTS=-server" >> /usr/local/hadoop-common-$HADOOP_VERSION/conf/hadoop-env.sh
+export HADOOP_OPTS=-server" >> /usr/local/hadoop-$HADOOP_VERSION/conf/hadoop-env.sh
 
 # Install HBase
 echo "Installing HBase $HBASE_VERSION."
 cd /usr/local
 wget -nv $HBASE_URL
 tar xzf hbase-$HBASE_VERSION-bin.tar.gz
-#rm -f hbase-$HBASE_VERSION-bin.tar.gz
+rm -f hbase-$HBASE_VERSION-bin.tar.gz
 
 # Configure HBase
 echo "export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}
@@ -94,7 +94,7 @@ echo "/etc/init.d/ec2-run-user-data" >> /etc/rc.d/rc.local
 # Setup root user bash environment
 
   echo "export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}" >> /root/.bash_profile
-echo "export HADOOP_HOME=/usr/local/hadoop-common-${HADOOP_VERSION}" >> /root/.bash_profile
+echo "export HADOOP_HOME=/usr/local/hadoop-${HADOOP_VERSION}" >> /root/.bash_profile
 echo "export HBASE_HOME=/usr/local/hbase-${HBASE_VERSION}" >> /root/.bash_profile
 echo 'export PATH=$JAVA_HOME/bin:$HADOOP_HOME/bin:$HBASE_HOME/bin:$PATH' >> /root/.bash_profile
 
@@ -107,7 +107,7 @@ echo '    StrictHostKeyChecking no' >> /etc/ssh/ssh_config
 # Install LZO
 echo "Installing LZO codec support"
 wget -nv -O /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz $LZO_URL
-cd /usr/local/hadoop-common-${HADOOP_VERSION} && tar xzf /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
+cd /usr/local/hadoop-${HADOOP_VERSION} && tar xzf /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
 cd /usr/local/hbase-${HBASE_VERSION} && tar xzf /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
 #rm -f /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
 

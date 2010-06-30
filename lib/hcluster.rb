@@ -295,7 +295,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     
     puts "running create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
     hbase_url = "http://ekoontz-tarballs.s3.amazonaws.com/hbase-#{hbase_version}-bin.tar.gz"
-    hadoop_url = "http://ekoontz-tarballs.s3.amazonaws.com/hadoop-common-#{hadoop_version}.tar.gz"
+    hadoop_url = "http://ekoontz-tarballs.s3.amazonaws.com/hadoop-#{hadoop_version}.tar.gz"
     lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-0.20-tm-2.tar.gz"
     java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
 
@@ -311,7 +311,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # FIXME: notify maintainers: 
     # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not 
     # mention :name param (only :image_location).
-    register_image({
+    registered_image = register_image({
                      :name => image_name,
                      :image_location => image_location,
                      :description => 'HBase Cluster Image'
@@ -327,7 +327,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     else
       puts "not shutting down image creator: #{@image_creator.dnsName}"
     end
-    image_name
+    registered_image
   end
 
   def image_output_handler(debug)
