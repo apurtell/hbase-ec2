@@ -752,7 +752,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def get_image(image_name)
     matching_image = describe_images({:owner_id => @owner_id},image_name)
     if matching_image
-      matching_image
+      matching_image.imagesSet.item[0]
     else
       raise HClusterStartError,
       "describe_images({:owner_id => '#{@owner_id}'},'#{image_name}') unexpectedly returned nil."
@@ -915,7 +915,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def echo_stdout
-    return lambda{|line|
+    return lambda{|line,channel|
       puts line
     }
   end
