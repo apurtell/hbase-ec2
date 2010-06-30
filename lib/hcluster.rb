@@ -89,7 +89,23 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     if (options[:validate_images] == true)
       #validate image names (make sure they exist in Amazon's set).
       @zk_image_ = zk_image
-      #FIXME: also verify master, slaves, and aux (if any).
+      if (!@zk_image_)
+        raise HClusterStartError,
+        "could not find image called '#{@zk_image_name}'."
+      end
+
+      @master_image_ = master_image
+      if (!@master_image_)
+        raise HClusterStartError,
+        "could not find image called '#{@master_image_name}'."
+      end
+
+      @slave_image_ = regionserver_image
+      if (!@slave_image_)
+        raise HClusterStartError,
+        "could not find image called '#{@slave_image_name}'."
+      end
+
     end
 
     #security_groups
@@ -290,8 +306,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # Register image
     image_location = "#{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
 
-    puts "ec2-register -n #{image_name} #{image_location}"
-
     # FIXME: notify maintainers: 
     # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not 
     # mention :name param (only :image_location).
@@ -311,7 +325,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     else
       puts "not shutting down image creator: #{@image_creator.dnsName}"
     end
-    "(image name goes here)"
+    image_name
   end
 
   def image_output_handler(debug)
@@ -693,7 +707,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
-  def describe_instances(options = {}) 
+  def describe_instances(options = {})
     retval = nil
     @lock.synchronize {
       retval = super(options)
@@ -703,19 +717,24 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   #overrides parent: tries to find image using owner_id, which will be faster to iterate through (in .detect loop)
   # if not found, tries all images.
-  def describe_images(options,image_name)
-    options = {
-      :owner_id => @owner_id
-    }.merge(options)
-    
-    retval = super(options)
-
-    if (retval == nil)
-      options.delete(:owner_id)
-      puts "image '#{image_name}' not found in owner {@owner_id}'s images; looking in all images (may take a while..)"
+  def describe_images(options,image_name = nil)
+    if image_name
+      options = {
+        :owner_id => @owner_id,
+        :name => image_name
+      }.merge(options)
+      
       retval = super(options)
+
+      if (retval == nil)
+        options.delete(:owner_id)
+        puts "image '#{image_name}' not found in owner {@owner_id}'s images; looking in all images (may take a while..)"
+        retval = super(options)
+      end
+      retval
+    else
+      super(options)
     end
-    retval
   end
 
   def zk_image
@@ -731,12 +750,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def get_image(image_name)
-    matching_images = describe_images({:owner_id => @owner_id},image_name)
-    if matching_images
-      if_null_image(
-                    describe_images({:owner_id => @owner_id},image_name)['imagesSet']['item'].detect{
-                      |image| image['name'] == image_name
-                    },image_name)
+    matching_image = describe_images({:owner_id => @owner_id},image_name)
+    if matching_image
+      matching_image
     else
       raise HClusterStartError,
       "describe_images({:owner_id => '#{@owner_id}'},'#{image_name}') unexpectedly returned nil."
