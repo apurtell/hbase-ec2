@@ -297,7 +297,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # mention :name param (only :image_location).
     register_image({
                      :name => image_name,
-                     :image_location => image_location
+                     :image_location => image_location,
+                     :description => 'HBase Cluster Image'
                    })
     
     puts "image registered."
