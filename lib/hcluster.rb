@@ -518,7 +518,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       scp_to(zk.dnsName,File.dirname(__FILE__) +"/../bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-             summarize_stdout,summarize_stderr,
+             echo_stdout,echo_stderr,
              "[setup:zk:#{zk.dnsName}",
              "]\n")
     }
@@ -688,23 +688,42 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def zk_image
     #specifying owner_id speeds up describe_images() a lot, but only works if the image is owned by @owner.
-    describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
-      |image| image['name'] == @zk_image_name
-    }
+    if_null_image(
+                  describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
+                    |image| image['name'] == @zk_image_name
+                  },@zk_image_name)
   end
 
   def regionserver_image
     #specifying owner_id speeds up describe_images() a lot, but only works if the image is owned by @owner.
-    describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
-      |image| image['name'] == @slave_image_name
-    }
+    if_null_image(
+                  describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
+                    |image| image['name'] == @slave_image_name
+                  },@regionserver_image)
   end
 
   def master_image
     #specifying owner_id speeds up describe_images() a lot, but only works if the image is owned by @owner.
-    describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
-      |image| image['name'] == @master_image_name
-    }
+    if_null_image(
+                  describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
+                    |image| image['name'] == @master_image_name
+                  },@master_image_name)
+  end
+
+  def if_null_image(retval,image_name)
+    if !retval
+      # try default image instead.
+      retval = describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
+        |image| image['imageId'] == @@default_base_ami_image
+      }
+      if !retval
+        raise HClusterStartError, 
+        "Could not find image '#{image_name}' in instances owned by AWS Account ID: '#{@owner_id}'."
+      else
+        "Warning: could not find image '#{image_name}; using default base ami image #{@@default_base_ami_image} instead."
+      end
+    end
+    retval
   end
 
   def run_test(test,stdout_line_reader = lambda{|line,channel| puts line},stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
@@ -873,16 +892,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     }
   end
 
-  def summarize_stdout
+  def summarize_output
     #output one '.' per line.
     return lambda{|line,channel|
-      putc "."
-    }
-  end
-
-  def summarize_stderr
-    #output one '.' per line.
-    return lambda{|line|
       putc "."
     }
   end
