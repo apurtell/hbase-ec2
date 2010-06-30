@@ -260,7 +260,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     type=slave_instance_type
     arch=@slave_arch
     
-    image_name = "hbase-#{hbase_version}-#{arch}-#{user}"
+    image_name = "hbase-#{hbase_version}-#{arch}"
     existing_image = find_owned_image(image_name)
 
     if existing_image
