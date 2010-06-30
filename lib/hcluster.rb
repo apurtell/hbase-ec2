@@ -454,6 +454,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                                          )
       rescue AWS::InvalidPermissionDuplicate
         # authorization already exists - no problem.
+      rescue NoMethodError
+        # AWS::EC2::Base::HCluster internal error: fix AWS::EC2::Base
+        puts "Sorry, AWS::EC2::Base internal error; please retry launch."
+        return
       end
 
       #reciprocal access for each security group.
@@ -553,7 +557,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       # so we can remove the ZOOKEEPER_QUORUM=.. from the following.
       ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-             echo_stdout,echo_stderr,
+             summarize_output,summarize_output,
              "[setup:zk:#{zk.dnsName}",
              "]\n")
     }
