@@ -59,7 +59,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :zk_image_name => "hbase-0.21.0-SNAPSHOT-x86_64-ekoontz",
       :master_image_name => "hbase-0.21.0-SNAPSHOT-x86_64-ekoontz",
       :slave_image_name => "hbase-0.21.0-SNAPSHOT-x86_64-ekoontz",
-      :debug_level => 0
+      :debug_level => 0,
+      :validate_images => true
     }.merge(options)
 
     @lock = Monitor.new
@@ -84,6 +85,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @zk_image_name = options[:zk_image_name]
     @master_image_name = options[:master_image_name]
     @slave_image_name = options[:slave_image_name]
+
+    if (options[:validate_images] == true)
+      #validate image names (make sure they exist in Amazon's set).
+      @zk_image_ = zk_image
+      #FIXME: also verify master, slaves, and aux (if any).
+    end
 
     #security_groups
     @zk_security_group = @name + "-zk"
@@ -693,44 +700,53 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     retval
   end
 
+  #overrides parent: tries to find image using owner_id, which will be faster to iterate through (in .detect loop)
+  # if not found, tries all images.
+  def describe_images(options,image_name)
+    options = {
+      :owner_id => @owner_id
+    }.merge(options)
+    
+    retval = super(options)
+
+    if (retval == nil)
+      options.delete(:owner_id)
+      puts "image '#{image_name}' not found in owner {@owner_id}'s images; looking in all images (may take a while..)"
+      retval = super(options)
+    end
+    retval
+  end
+
   def zk_image
-    #specifying owner_id speeds up describe_images() a lot, but only works if the image is owned by @owner.
-    if_null_image(
-                  describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
-                    |image| image['name'] == @zk_image_name
-                  },@zk_image_name)
+    get_image(@zk_image_name)
   end
 
   def regionserver_image
-    #specifying owner_id speeds up describe_images() a lot, but only works if the image is owned by @owner.
-    if_null_image(
-                  describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
-                    |image| image['name'] == @slave_image_name
-                  },@regionserver_image)
+    get_image(@slave_image_name)
   end
 
   def master_image
-    #specifying owner_id speeds up describe_images() a lot, but only works if the image is owned by @owner.
-    if_null_image(
-                  describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
-                    |image| image['name'] == @master_image_name
-                  },@master_image_name)
+    get_image(@master_image_name)
+  end
+
+  def get_image(image_name)
+    matching_images = describe_images({:owner_id => @owner_id},image_name)
+    if matching_images
+      if_null_image(
+                    describe_images({:owner_id => @owner_id},image_name)['imagesSet']['item'].detect{
+                      |image| image['name'] == image_name
+                    },image_name)
+    else
+      raise HClusterStartError,
+      "describe_images({:owner_id => '#{@owner_id}'},'#{image_name}') unexpectedly returned nil."
+    end
   end
 
   def if_null_image(retval,image_name)
     if !retval
-      # try default image instead.
-      retval = describe_images({:owner_id => @owner_id})['imagesSet']['item'].detect{
-        |image| image['imageId'] == @@default_base_ami_image
-      }
-      if !retval
-        raise HClusterStartError, 
-        "Could not find image '#{image_name}' in instances owned by AWS Account ID: '#{@owner_id}'."
-      else
-        "Warning: could not find image '#{image_name}; using default base ami image #{@@default_base_ami_image} instead."
-      end
+      raise HClusterStartError, 
+      "Could not find image '#{image_name}' in instances viewable by AWS Account ID: '#{@owner_id}'."
     end
-    retval
   end
 
   def run_test(test,stdout_line_reader = lambda{|line,channel| puts line},stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
