@@ -26,7 +26,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@m1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
   @@c1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
 
-  attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_name, :master_image_name, :slave_image_name, :aux_image_name, :owner_id,:image_creator
+  attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_name, :master_image_name, :slave_image_name, :aux_image_name, :owner_id,:image_creator,:options
 
   def initialize( name, options = {} )
     raise HClusterStartError, 
@@ -50,8 +50,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @master_arch = "x86_64"
     @slave_arch = "x86_64"
 
-    # image names below will work for your initial trials, but you
-    # will want to change them to your own images.
+    # defaults: FIXME: make *_image_name's public so that
+    # they work for others.
     options = { 
       :num_regionservers => 5,
       :num_zookeepers => 1,
@@ -62,6 +62,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :debug_level => 0,
       :validate_images => true
     }.merge(options)
+
+    #for debugging
+    @options = options
 
     @lock = Monitor.new
     
@@ -369,7 +372,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     init_hbase_cluster_secgroups
     launch_zookeepers
-    launch_master
+#    launch_master
 #    launch_slaves
 #    if @launch_aux
 #      launch_aux
@@ -545,6 +548,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         puts "zk dnsname: #{zk.dnsName}"
       end
       scp_to(zk.dnsName,File.dirname(__FILE__) +"/../bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
+      puts "ZKQU=#{zookeeper_quorum}"
       ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
              echo_stdout,echo_stderr,
@@ -617,7 +621,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
     ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-           echo_output,echo_output,"[setup:master:#{master.dnsName}","]\n")
+           echo_stdout,echo_stderr,"[setup:master:#{master.dnsName}","]\n")
   end
 
   def setup_slaves(slaves) 
@@ -720,18 +724,25 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def describe_images(options,image_name = nil)
     if image_name
       options = {
-        :owner_id => @owner_id,
-        :name => image_name
+        :owner_id => @owner_id
       }.merge(options)
-      
-      retval = super(options)
 
-      if (retval == nil)
+      retval = super(options)
+      #filter by image_name
+      retval2 = retval['imagesSet']['item'].detect{
+        |image| image['name'] == image_name
+      }
+
+      if (retval2 == nil)
         options.delete(:owner_id)
         puts "image '#{image_name}' not found in owner {@owner_id}'s images; looking in all images (may take a while..)"
         retval = super(options)
+        #filter by image_name
+        retval2 = retval['imagesSet']['item'].detect{
+          |image| image['name'] == image_name
+        }
       end
-      retval
+      retval2
     else
       super(options)
     end
@@ -752,7 +763,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def get_image(image_name)
     matching_image = describe_images({:owner_id => @owner_id},image_name)
     if matching_image
-      matching_image.imagesSet.item[0]
+      matching_image
     else
       raise HClusterStartError,
       "describe_images({:owner_id => '#{@owner_id}'},'#{image_name}') unexpectedly returned nil."
@@ -775,7 +786,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def ssh_to(host,command,
              stdout_line_reader = lambda{|line,channel| puts line},
-             stderr_line_reader = lambda{|line| puts "(stderr): #{line}"},
+             stderr_line_reader = lambda{|line,channel| puts "(stderr): #{line}"},
              begin_output = nil,
              end_output = nil)
     # variant of ssh with different param ordering.
@@ -921,7 +932,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def echo_stderr 
-    return lambda{|line|
+    return lambda{|line,channel|
       puts "(stderr): #{line}"
     }
   end
