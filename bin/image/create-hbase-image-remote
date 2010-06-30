@@ -55,7 +55,7 @@ echo "Done."
 # Install tools
 echo "Installing rpms."
 yum -y update
-yum -y install rsync lynx screen ganglia-gmetad ganglia-gmond ganglia-web httpd php lzo-devel xfsprogs emacs-nox
+yum -y install lynx screen ganglia-gmetad ganglia-gmond ganglia-web httpd php lzo-devel xfsprogs emacs-nox
 yum -y clean all
 chkconfig --levels 0123456 httpd off
 chkconfig --levels 0123456 gmetad off
