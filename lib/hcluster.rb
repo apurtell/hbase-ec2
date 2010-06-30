@@ -21,7 +21,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
   @@remote_init_script = "hbase-ec2-init-remote.sh"
 
-  @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
+#  @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
+  @@default_base_ami_image = "ami-70668e19"   # my trunk instance.
   @@m1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
   @@c1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
 
@@ -44,7 +45,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     "HCluster name '#{name}' is already in use for cluster:\n#{@@clusters[name]}\n" if @@clusters[name]
 
     #architectures
-    @zk_arch = "i386"
+#    @zk_arch = "i386"
+    @zk_arch = "x86_64"
     @master_arch = "x86_64"
     @slave_arch = "x86_64"
 
@@ -54,9 +56,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :num_regionservers => 5,
       :num_zookeepers => 1,
       :launch_aux => false,
-      :zk_image_name => "hbase-0.20-tm-2-#{@zk_arch}-ekoontz",
-      :master_image_name => "hbase-0.20-tm-2-#{@master_arch}-ekoontz",
-      :slave_image_name => "hbase-0.20-tm-2-#{@slave_arch}-ekoontz",
+      :zk_image_name => "hbase-0.21.0-SNAPSHOT-x86_64-ekoontz",
+      :master_image_name => "hbase-0.21.0-SNAPSHOT-x86_64-ekoontz",
+      :slave_image_name => "hbase-0.21.0-SNAPSHOT-x86_64-ekoontz",
       :debug_level => 0
     }.merge(options)
 
@@ -90,7 +92,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @aux_security_group = @name + "-aux"
 
     #machine instance types
-    @zk_instance_type = "m1.small"
+#    @zk_instance_type = "m1.small"
+    @zk_instance_type = "c1.xlarge"
     @rs_instance_type = "c1.xlarge"
     @master_instance_type = "c1.xlarge"
 
@@ -282,7 +285,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     puts "ec2-register -n #{image_name} #{image_location}"
 
+    # FIXME: notify maintainers: 
+    # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not 
+    # mention :name param (only :image_location).
     register_image({
+                     :name => image_name,
                      :image_location => image_location
                    })
     
@@ -340,11 +347,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     init_hbase_cluster_secgroups
     launch_zookeepers
-    launch_master
-    launch_slaves
-    if @launch_aux
-      launch_aux
-    end
+#    launch_master
+#    launch_slaves
+#    if @launch_aux
+#      launch_aux
+#    end
 
     # if threaded, we would set to "pending" and then 
     # use join to determine when state should transition to "running".
