@@ -372,7 +372,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     init_hbase_cluster_secgroups
     launch_zookeepers
-#    launch_master
+    launch_master
 #    launch_slaves
 #    if @launch_aux
 #      launch_aux
@@ -548,7 +548,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         puts "zk dnsname: #{zk.dnsName}"
       end
       scp_to(zk.dnsName,File.dirname(__FILE__) +"/../bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
-      puts "ZKQU=#{zookeeper_quorum}"
+      #note that ZOOKEEPER_QUORUM is not yet set, but we don't 
+      # need it set to start the zookeeper(s) themselves, 
+      # so we can remove the ZOOKEEPER_QUORUM=.. from the following.
       ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
              echo_stdout,echo_stderr,
