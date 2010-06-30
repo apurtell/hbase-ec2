@@ -327,7 +327,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     else
       puts "not shutting down image creator: #{@image_creator.dnsName}"
     end
-    registered_image
+    registered_image.imageId
   end
 
   def image_output_handler(debug)
