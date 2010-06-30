@@ -21,8 +21,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@clusters = {}
   @@remote_init_script = "hbase-ec2-init-remote.sh"
 
-#  @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
-  @@default_base_ami_image = "ami-70668e19"   # my trunk instance.
+  @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
+#  @@default_base_ami_image = "ami-70668e19"   # my trunk instance.
   @@m1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
   @@c1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
 
@@ -242,7 +242,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     arch=@slave_arch
     
     image_name = "hbase-#{hbase_version}-#{arch}-#{user}"
-    existing_image = describe_images({:owner_id => @owner_id}).imagesSet.item.detect {
+    existing_image = describe_images({:owner_id => @owner_id},image_name).imagesSet.item.detect {
       |image| image.name == image_name
     }
     
