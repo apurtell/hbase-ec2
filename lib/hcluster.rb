@@ -228,8 +228,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def create_image(options = {})
     options = {
-      :hbase_version => "0.21.0-SNAPSHOT",
-      :hadoop_version => "0.22.0-SNAPSHOT",
+      :hbase_version => "#{ENV['HBASE_VERSION']}",
+      :hadoop_version => "#{ENV['HADOOP_VERSION']}",
       :slave_instance_type => nil,
       :user => "ekoontz",
       :s3_bucket => "ekoontz-amis",
@@ -261,10 +261,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     arch=@slave_arch
     
     image_name = "hbase-#{hbase_version}-#{arch}-#{user}"
-    existing_image = describe_images({:owner_id => @owner_id},image_name).imagesSet.item.detect {
-      |image| image.name == image_name
-    }
-    
+    puts "looking for image name: #{image_name}"
+    existing_image = get_image(image_name)
+
     if existing_image
       puts "Existing_image: #{existing_image.imageId} already registered for image name #{image_name}. Call deregister_image(:image_id => '#{existing_image.imageId}'), if desired."
       return existing_image.imageId
@@ -373,10 +372,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     init_hbase_cluster_secgroups
     launch_zookeepers
     launch_master
-#    launch_slaves
-#    if @launch_aux
-#      launch_aux
-#    end
+    launch_slaves
+    if @launch_aux
+      launch_aux
+    end
 
     # if threaded, we would set to "pending" and then 
     # use join to determine when state should transition to "running".
