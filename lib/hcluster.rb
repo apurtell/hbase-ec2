@@ -369,7 +369,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     init_hbase_cluster_secgroups
     launch_zookeepers
-#    launch_master
+    launch_master
 #    launch_slaves
 #    if @launch_aux
 #      launch_aux
@@ -377,7 +377,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     # if threaded, we would set to "pending" and then 
     # use join to determine when state should transition to "running".
-    @launchTime = master.launchTime
+#    @launchTime = master.launchTime
     @state = "running"
   end
 
@@ -617,7 +617,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
     ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-           summarize_output,summarize_output,"[setup:master:#{master.dnsName}","]\n")
+           echo_output,echo_output,"[setup:master:#{master.dnsName}","]\n")
   end
 
   def setup_slaves(slaves) 
@@ -822,10 +822,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           # example of how to talk back to server.
           #          channel.send_data "something for stdin\n"
         end
-        channel.on_extended_data do |ch, type, data|
-          stderr_line_reader.call(data)
+        channel.on_extended_data do |channel, type, data|
+          stderr_line_reader.call(data,channel)
         end
-        channel.on_close do |ch|
+        channel.on_close do |channel|
           # cleanup, if any..
         end
       end
