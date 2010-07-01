@@ -627,7 +627,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
     ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-           echo_stdout,echo_stderr,"[setup:master:#{master.dnsName}","]\n")
+           summarize_output,summarize_output,"[setup:master:#{master.dnsName}","]\n")
   end
 
   def setup_slaves(slaves) 
