@@ -61,7 +61,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :master_image_name => "hbase-0.21.0-SNAPSHOT-x86_64",
       :slave_image_name => "hbase-0.21.0-SNAPSHOT-x86_64",
       :debug_level => 0,
-      :validate_images => true
+      :validate_images => true,
+      :security_group_prefix => @name
     }.merge(options)
 
     #for debugging
@@ -113,12 +114,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
 
     #security_groups
-#    @security_prefix = @name
-    @security_prefix = "hdfs"
-    @zk_security_group = @security_prefix + "-zk"
-    @rs_security_group = @security_prefix
-    @master_security_group = @security_prefix + "-master"
-    @aux_security_group = @security_prefix + "-aux"
+    @security_group_prefix = options[:security_group_prefix]
+    @zk_security_group = @security_group_prefix + "-zk"
+    @rs_security_group = @security_group_prefix
+    @master_security_group = @security_group_prefix + "-master"
+    @aux_security_group = @security_group_prefix + "-aux"
 
     #machine instance types
 #    @zk_instance_type = "m1.small"
@@ -163,7 +163,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def sync
     #instance method: update 'self' with all info related to EC2 instances
-    # where security_group = @security_prefix
+    # where security_group = @security_group_prefix
 
     i = 0
     zookeepers = 0
@@ -177,7 +177,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     describe_instances.reservationSet.item.each do |ec2_instance_set|
       security_group = ec2_instance_set.groupSet.item[0].groupId
-      if (security_group == @security_prefix)
+      if (security_group == @security_group_prefix)
         slaves = ec2_instance_set.instancesSet.item
         slaves.each {|rs|
           if (rs.instanceState.name != 'terminated')
@@ -185,7 +185,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           end
         }
       else
-        if (security_group == (@security_prefix + "-zk"))
+        if (security_group == (@security_group_prefix + "-zk"))
           zks = ec2_instance_set.instancesSet.item
           zks.each {|zk|
             if (zk['instanceState']['name'] != 'terminated')
@@ -193,7 +193,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
             end
           }
         else
-          if (security_group == (@security_prefix + "-master"))
+          if (security_group == (@security_group_prefix + "-master"))
             if ec2_instance_set.instancesSet.item[0].instanceState.name != 'terminated'
               @master = ec2_instance_set.instancesSet.item[0]
               @state = @master.instanceState.name
@@ -201,7 +201,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
               @launchTime = @master.launchTime
             end
           else
-            if (security_group == (@security_prefix + "-aux"))
+            if (security_group == (@security_group_prefix + "-aux"))
               if ec2_instance_set.instancesSet.item[0].instanceState.name != 'terminated'
                 @aux = ec2_instance_set.instancesSet.item[0]
               end
@@ -394,32 +394,32 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     found_zk = false
     found_aux = false
     groups['securityGroupInfo']['item'].each { |group| 
-      if group['groupName'] =~ /^#{@security_prefix}$/
+      if group['groupName'] =~ /^#{@security_group_prefix}$/
         found_rs = true
       end
-      if group['groupName'] =~ /^#{@security_prefix}-master$/
+      if group['groupName'] =~ /^#{@security_group_prefix}-master$/
         found_master = true
       end
-      if group['groupName'] =~ /^#{@security_prefix}-zk$/
+      if group['groupName'] =~ /^#{@security_group_prefix}-zk$/
         found_zk = true
       end
-      if group['groupName'] =~ /^#{@security_prefix}-aux$/
+      if group['groupName'] =~ /^#{@security_group_prefix}-aux$/
         found_aux = true
       end
     }
 
     if (found_aux == false) 
-      puts "creating new security group: #{@security_prefix}-aux.."
+      puts "creating new security group: #{@security_group_prefix}-aux.."
       create_security_group({
-        :group_name => "#{@security_prefix}-aux",
+        :group_name => "#{@security_group_prefix}-aux",
         :group_description => "Group for HBase Auxiliaries."
       })
     end
 
     if (found_rs == false) 
-      puts "creating new security group: #{@security_prefix}.."
+      puts "creating new security group: #{@security_group_prefix}.."
       create_security_group({
-        :group_name => "#{@security_prefix}",
+        :group_name => "#{@security_group_prefix}",
         :group_description => "Group for HBase Slaves."
       })
     end
@@ -434,16 +434,17 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
 
     if (found_zk == false) 
-      puts "creating new security group: #{@security_prefix}-zk.."
+      puts "creating new security group: #{@security_group_prefix}-zk.."
       create_security_group({
-        :group_name => "#{@security_prefix}-zk",
+        :group_name => "#{@security_group_prefix}-zk",
         :group_description => "Group for HBase Zookeeper quorum."
       })
       puts "..done"
     end
 
     # allow ssh from each..
-    ["#{@security_prefix}","#{@security_prefix}-aux","#{@security_prefix}-master","#{@security_prefix}-zk"].each {|group|
+    ["#{@security_group_prefix}","#{@security_group_prefix}-aux",
+     "#{@security_group_prefix}-master","#{@security_group_prefix}-zk"].each {|group|
       begin
         authorize_security_group_ingress(
                                          {
@@ -463,8 +464,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
 
       #reciprocal access for each security group.
-      ["#{@security_prefix}","#{@security_prefix}-aux",
-       "#{@security_prefix}-master","#{@security_prefix}-zk"].each {|other_group|
+      ["#{@security_group_prefix}","#{@security_group_prefix}-aux",
+       "#{@security_group_prefix}-master","#{@security_group_prefix}-zk"].each {|other_group|
         if (group != other_group)
           begin
             authorize_security_group_ingress(
