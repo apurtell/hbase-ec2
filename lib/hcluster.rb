@@ -44,25 +44,22 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     raise ArgumentError, 
     "HCluster name '#{name}' is already in use for cluster:\n#{@@clusters[name]}\n" if @@clusters[name]
 
-    #architectures
-#    @zk_arch = "i386"
+    #architectures: either "x86_64" or "i386".
     @zk_arch = "x86_64"
     @master_arch = "x86_64"
     @slave_arch = "x86_64"
 
-    # defaults: FIXME: make *_image_name's public so that
-    # they work for others.
-    # FIXME: refer to ENV, not hard-wired.
     options = { 
       :num_regionservers => 5,
       :num_zookeepers => 1,
       :launch_aux => false,
-      :zk_image_name => "hbase-0.21.0-SNAPSHOT-x86_64",
-      :master_image_name => "hbase-0.21.0-SNAPSHOT-x86_64",
-      :slave_image_name => "hbase-0.21.0-SNAPSHOT-x86_64",
+      :zk_image_name => "hbase-#{ENV['HBASE_VERSION']}-{@zk_arch}",
+      :master_image_name => "hbase-#{ENV['HBASE_VERSION']}-{@master_arch}",
+      :slave_image_name => "hbase-#{ENV['HBASE_VERSION']}-{@slave_arch}",
       :debug_level => 0,
       :validate_images => true,
-      :security_group_prefix => @name
+      :security_group_prefix => @name,
+      :separate_secrity_groups => false
     }.merge(options)
 
     #for debugging
@@ -115,10 +112,17 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     #security_groups
     @security_group_prefix = options[:security_group_prefix]
-    @zk_security_group = @security_group_prefix + "-zk"
-    @rs_security_group = @security_group_prefix
-    @master_security_group = @security_group_prefix + "-master"
-    @aux_security_group = @security_group_prefix + "-aux"
+    if (options[:separate_security_groups] == true)
+      @zk_security_group = @security_group_prefix + "-zk"
+      @rs_security_group = @security_group_prefix
+      @master_security_group = @security_group_prefix + "-master"
+      @aux_security_group = @security_group_prefix + "-aux"
+    else
+      @zk_security_group = @security_group_prefix
+      @rs_security_group = @security_group_prefix
+      @master_security_group = @security_group_prefix
+      @aux_security_group = @security_group_prefix
+    end
 
     #machine instance types
 #    @zk_instance_type = "m1.small"
