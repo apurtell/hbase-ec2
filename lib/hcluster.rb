@@ -140,6 +140,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     sync
   end
 
+  def dnsName
+    master.dnsName
+  end
+
   def ssh_input
     return @ssh_input
   end
