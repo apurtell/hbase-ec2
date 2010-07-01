@@ -442,7 +442,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       puts "..done"
     end
 
-    # allow ssh from each..
+    # <allow ssh to each instance from anywhere.>
     ["#{@security_group_prefix}","#{@security_group_prefix}-aux",
      "#{@security_group_prefix}-master","#{@security_group_prefix}-zk"].each {|group|
       begin
@@ -463,7 +463,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         return
       end
 
-      #reciprocal access for each security group.
+      #reciprocal full access for each security group.
       ["#{@security_group_prefix}","#{@security_group_prefix}-aux",
        "#{@security_group_prefix}-master","#{@security_group_prefix}-zk"].each {|other_group|
         if (group != other_group)
