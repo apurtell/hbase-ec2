@@ -78,8 +78,8 @@ export HADOOP_OPTS=-server" >> /usr/local/hadoop-$HADOOP_VERSION/conf/hadoop-env
 echo "Installing HBase $HBASE_VERSION."
 cd /usr/local
 wget -nv $HBASE_URL
-tar xzf hbase-$HBASE_VERSION-bin.tar.gz
-rm -f hbase-$HBASE_VERSION-bin.tar.gz
+tar xzf hbase-$HBASE_VERSION.tar.gz
+rm -f hbase-$HBASE_VERSION.tar.gz
 
 # Configure HBase
 echo "export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}
