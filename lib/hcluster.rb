@@ -52,13 +52,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     # defaults: FIXME: make *_image_name's public so that
     # they work for others.
+    # FIXME: refer to ENV, not hard-wired.
     options = { 
       :num_regionservers => 5,
       :num_zookeepers => 1,
       :launch_aux => false,
-      :zk_image_name => "hbase-0.21.0-SNAPSHOT-x86_64-ekoontz",
-      :master_image_name => "hbase-0.21.0-SNAPSHOT-x86_64-ekoontz",
-      :slave_image_name => "hbase-0.21.0-SNAPSHOT-x86_64-ekoontz",
+      :zk_image_name => "hbase-0.21.0-SNAPSHOT-x86_64",
+      :master_image_name => "hbase-0.21.0-SNAPSHOT-x86_64",
+      :slave_image_name => "hbase-0.21.0-SNAPSHOT-x86_64",
       :debug_level => 0,
       :validate_images => true
     }.merge(options)
