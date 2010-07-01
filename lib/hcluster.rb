@@ -776,7 +776,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       matching_image
     else
       raise HClusterStartError,
-      "describe_images({:owner_id => '#{@owner_id}'},'#{image_name}') unexpectedly returned nil."
+      "describe_images({:owner_id => '#{@owner_id}'},'#{image_name}'): couldn't find #{image_name}, even in all of Amazon's viewable images."
     end
   end
 
