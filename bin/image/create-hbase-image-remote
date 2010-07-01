@@ -43,6 +43,7 @@ cd /usr/local
 wget -nv -O java.bin $JAVA_URL
 sh java.bin
 rm -f java.bin
+ln -s `find /usr/local -type d -maxdepth 1 -type d -name "jdk*" | head -n 1 ` /usr/local/jdk
 
 echo "Downloading and installing Jruby."
 wget -nv http://ekoontz-tarballs.s3.amazonaws.com/jruby-bin-1.5.0.RC1.tar.gz
