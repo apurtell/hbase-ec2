@@ -425,9 +425,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
 
     if (found_master == false) 
-      puts "creating new security group: #{@name}-master.."
+      puts "creating new security group: #{@security_group_prefix}-master.."
       create_security_group({
-        :group_name => "#{@name}-master",
+        :group_name => "#{@security_group_prefix}-master",
         :group_description => "Group for HBase Master."
       })
       puts "..done"
