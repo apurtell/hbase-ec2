@@ -59,7 +59,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :debug_level => 0,
       :validate_images => true,
       :security_group_prefix => @name,
-      :separate_secrity_groups => false
+      :separate_security_groups => true
     }.merge(options)
 
     #for debugging
@@ -806,7 +806,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         stderr_line_reader)
   end
 
-  def ssh_to(host,command,
+  #If command == nil, open interactive channel.
+  def ssh_to(host,command = nil,
              stdout_line_reader = lambda{|line,channel| puts line},
              stderr_line_reader = lambda{|line,channel| puts "(stderr): #{line}"},
              begin_output = nil,
@@ -815,10 +816,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     ssh(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
   end
 
-  # send a command and handle stdout and stderr 
+  # Send a command and handle stdout and stderr 
   # with supplied anonymous functions (puts by default)
   # to a specific host (master by default).
-  def ssh(command,
+  # If command == nil, open interactive channel.
+  def ssh(command = nil,
           stdout_line_reader = echo_stdout,
           stderr_line_reader = echo_stderr,
           host = self.master.dnsName,
@@ -830,39 +832,59 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       "HCluster '#{@name}' has no master hostname. Cluster summary:\n#{self.to_s}\n" if (host == nil)
     end
 
+    if command == nil
+      interactive = true
+    end
+
+    if false
+      until command == "exit\n"
+        print "#{host}>"
+        command = gets
+      end
+      return
+    end
+
     if begin_output
       print begin_output
       STDOUT.flush
     end
-
     # http://net-ssh.rubyforge.org/ssh/v2/api/classes/Net/SSH.html#M000013
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
-   # and their servers' private keys will vary.
+    # and their servers' private keys will vary.
 
-    Net::SSH.start(host,'root',
-                   :keys => ["~/.ec2/root.pem"],
-                   :paranoid => false
-                   ) do |ssh|
-      stdout = ""
-      channel = ssh.open_channel do |ch|
-        @ssh_input.push(command)
-        channel.exec(command) do |ch, success|
-          #FIXME: throw exception(?)
-          puts "error: could not execute command '#{command}'" unless success
-        end
-        channel.on_data do |ch, data|
-          stdout_line_reader.call(data,channel)
-          # example of how to talk back to server.
-          #          channel.send_data "something for stdin\n"
-        end
-        channel.on_extended_data do |channel, type, data|
-          stderr_line_reader.call(data,channel)
-        end
-        channel.on_close do |channel|
-          # cleanup, if any..
+    until command == "exit\n"
+      if interactive == true
+        print "#{host} $ "
+        command = gets
+      end
+      Net::SSH.start(host,'root',
+                     :keys => ["~/.ec2/root.pem"],
+                     :paranoid => false
+                     ) do |ssh|
+        stdout = ""
+        channel = ssh.open_channel do |ch|
+          channel.exec(command) do |ch, success|
+            #FIXME: throw exception(?)
+            puts "channel.exec('#{command}') was not successful." unless success
+          end
+          channel.on_data do |ch, data|
+            stdout_line_reader.call(data,channel)
+            # example of how to talk back to server.
+            #          channel.send_data "something for stdin\n"
+          end
+          channel.on_extended_data do |channel, type, data|
+            stderr_line_reader.call(data,channel)
+          end
+          channel.wait
+          if !(interactive == true)
+            #Cause exit from until(..) loop.
+            command = "exit\n"
+          end
+          channel.on_close do |channel|
+            # cleanup, if any..
+          end
         end
       end
-      channel.wait
     end
     if end_output
       print end_output
