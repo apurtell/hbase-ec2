@@ -113,10 +113,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
 
     #security_groups
-    @zk_security_group = @name + "-zk"
-    @rs_security_group = @name
-    @master_security_group = @name + "-master"
-    @aux_security_group = @name + "-aux"
+#    @security_prefix = @name
+    @security_prefix = "hdfs"
+    @zk_security_group = @security_prefix + "-zk"
+    @rs_security_group = @security_prefix
+    @master_security_group = @security_prefix + "-master"
+    @aux_security_group = @security_prefix + "-aux"
 
     #machine instance types
 #    @zk_instance_type = "m1.small"
@@ -161,7 +163,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def sync
     #instance method: update 'self' with all info related to EC2 instances
-    # where security_group = @name
+    # where security_group = @security_prefix
 
     i = 0
     zookeepers = 0
@@ -175,7 +177,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     describe_instances.reservationSet.item.each do |ec2_instance_set|
       security_group = ec2_instance_set.groupSet.item[0].groupId
-      if (security_group == @name)
+      if (security_group == @security_prefix)
         slaves = ec2_instance_set.instancesSet.item
         slaves.each {|rs|
           if (rs.instanceState.name != 'terminated')
@@ -183,7 +185,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           end
         }
       else
-        if (security_group == (@name + "-zk"))
+        if (security_group == (@security_prefix + "-zk"))
           zks = ec2_instance_set.instancesSet.item
           zks.each {|zk|
             if (zk['instanceState']['name'] != 'terminated')
@@ -191,7 +193,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
             end
           }
         else
-          if (security_group == (@name + "-master"))
+          if (security_group == (@security_prefix + "-master"))
             if ec2_instance_set.instancesSet.item[0].instanceState.name != 'terminated'
               @master = ec2_instance_set.instancesSet.item[0]
               @state = @master.instanceState.name
@@ -199,7 +201,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
               @launchTime = @master.launchTime
             end
           else
-            if (security_group == (@name + "-aux"))
+            if (security_group == (@security_prefix + "-aux"))
               if ec2_instance_set.instancesSet.item[0].instanceState.name != 'terminated'
                 @aux = ec2_instance_set.instancesSet.item[0]
               end
@@ -295,7 +297,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     scp_to(image_creator_hostname,"#{ENV['HOME']}/.ec2/cert.pem","/mnt")
     
     puts "running create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
-    hbase_url = "http://ekoontz-tarballs.s3.amazonaws.com/hbase-#{hbase_version}-bin.tar.gz"
+    hbase_url = "http://ekoontz-tarballs.s3.amazonaws.com/hbase-#{hbase_version}.tar.gz"
     hadoop_url = "http://ekoontz-tarballs.s3.amazonaws.com/hadoop-#{hadoop_version}.tar.gz"
     lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-0.20-tm-2.tar.gz"
     java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
@@ -392,32 +394,32 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     found_zk = false
     found_aux = false
     groups['securityGroupInfo']['item'].each { |group| 
-      if group['groupName'] =~ /^#{@name}$/
+      if group['groupName'] =~ /^#{@security_prefix}$/
         found_rs = true
       end
-      if group['groupName'] =~ /^#{@name}-master$/
+      if group['groupName'] =~ /^#{@security_prefix}-master$/
         found_master = true
       end
-      if group['groupName'] =~ /^#{@name}-zk$/
+      if group['groupName'] =~ /^#{@security_prefix}-zk$/
         found_zk = true
       end
-      if group['groupName'] =~ /^#{@name}-aux$/
+      if group['groupName'] =~ /^#{@security_prefix}-aux$/
         found_aux = true
       end
     }
 
     if (found_aux == false) 
-      puts "creating new security group: #{@name}-aux.."
+      puts "creating new security group: #{@security_prefix}-aux.."
       create_security_group({
-        :group_name => "#{@name}-aux",
+        :group_name => "#{@security_prefix}-aux",
         :group_description => "Group for HBase Auxiliaries."
       })
     end
 
     if (found_rs == false) 
-      puts "creating new security group: #{@name}.."
+      puts "creating new security group: #{@security_prefix}.."
       create_security_group({
-        :group_name => "#{@name}",
+        :group_name => "#{@security_prefix}",
         :group_description => "Group for HBase Slaves."
       })
     end
@@ -432,16 +434,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
 
     if (found_zk == false) 
-      puts "creating new security group: #{@name}-zk.."
+      puts "creating new security group: #{@security_prefix}-zk.."
       create_security_group({
-        :group_name => "#{@name}-zk",
+        :group_name => "#{@security_prefix}-zk",
         :group_description => "Group for HBase Zookeeper quorum."
       })
       puts "..done"
     end
 
     # allow ssh from each..
-    ["#{@name}","#{@name}-aux","#{@name}-master","#{@name}-zk"].each {|group|
+    ["#{@security_prefix}","#{@security_prefix}-aux","#{@security_prefix}-master","#{@security_prefix}-zk"].each {|group|
       begin
         authorize_security_group_ingress(
                                          {
@@ -461,7 +463,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
 
       #reciprocal access for each security group.
-      ["#{@name}","#{@name}-aux","#{@name}-master","#{@name}-zk"].each {|other_group|
+      ["#{@security_prefix}","#{@security_prefix}-aux",
+       "#{@security_prefix}-master","#{@security_prefix}-zk"].each {|other_group|
         if (group != other_group)
           begin
             authorize_security_group_ingress(
@@ -787,7 +790,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
-  def run_test(test,stdout_line_reader = lambda{|line,channel| puts line},stderr_line_reader = lambda{|line| puts "(stderr): #{line}"})
+  def run_test(test,stdout_line_reader = lambda{|line,channel| puts line},stderr_line_reader = lambda{|line,channel| puts "(stderr): #{line}"})
     #fixme : fix hardwired version (first) then path to hadoop (later)
     ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop-0.20-tm-2/hadoop-test-0.20-tm-2.jar #{test}",
         stdout_line_reader,
