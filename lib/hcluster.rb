@@ -18,7 +18,7 @@ class HClusterStartError < StandardError
 end
 
 class AWS::EC2::Base::HCluster < AWS::EC2::Base
-  @@clusters = {}
+  @@clusters = []
   @@remote_init_script = "hbase-ec2-init-remote.sh"
 
   @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
@@ -104,28 +104,28 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @zone = "us-east-1a"
 
     #images
-    @zk_image_name = options[:zk_image_name]
-    @master_image_name = options[:master_image_name]
-    @slave_image_name = options[:slave_image_name]
+    @zk_image_label = options[:zk_image_label]
+    @master_image_label = options[:master_image_label]
+    @slave_image_label = options[:slave_image_label]
 
     if (options[:validate_images] == true)
       #validate image names (make sure they exist in Amazon's set).
       @zk_image_ = zk_image
       if (!@zk_image_)
         raise HClusterStartError,
-        "could not find image called '#{@zk_image_name}'."
+        "could not find image called '#{@zk_image_label}'."
       end
 
       @master_image_ = master_image
       if (!@master_image_)
         raise HClusterStartError,
-        "could not find image called '#{@master_image_name}'."
+        "could not find image called '#{@master_image_label}'."
       end
 
       @slave_image_ = regionserver_image
       if (!@slave_image_)
         raise HClusterStartError,
-        "could not find image called '#{@slave_image_name}'."
+        "could not find image called '#{@slave_image_label}'."
       end
 
     end
@@ -294,16 +294,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     type=slave_instance_type
     arch=@slave_arch
     
-    image_name = "hbase-#{hbase_version}-#{arch}"
-    existing_image = find_owned_image(image_name)
+    image_label = "hbase-#{hbase_version}-#{arch}"
+    existing_image = find_owned_image(image_label)
 
     if existing_image
-      puts "Existing_image: #{existing_image.imageId} already registered for image name #{image_name}. Call deregister_image(:image_id => '#{existing_image.imageId}'), if desired."
+      puts "Existing_image: #{existing_image.imageId} already registered for image name #{image_label}. Call deregister_image(:image_id => '#{existing_image.imageId}'), if desired."
 
       return existing_image.imageId
     end
     
-    puts "Creating and registering image: #{image_name}"
+    puts "Creating and registering image: #{image_label}"
     puts "Starting a AMI with ID: #{@@default_base_ami_image}."
     
     @image_creator = do_launch({
@@ -343,7 +343,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts("sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{ENV['AWS_ACCOUNT_ID']} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"")
 
     ssh_to(image_creator_hostname,
-           "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
+           "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
            image_output_handler(options[:debug]))
     
     # Register image
@@ -353,7 +353,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not 
     # mention :name param (only :image_location).
     registered_image = register_image({
-                     :name => image_name,
+                     :name => image_label,
                      :image_location => image_location,
                      :description => 'HBase Cluster Image'
                    })
@@ -769,25 +769,25 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   #overrides parent: tries to find image using owner_id, which will be faster to iterate through (in .detect loop)
   # if not found, tries all images.
-  def HCluster.describe_images(options,image_name = nil,search_all_visible_images = true)
-    if image_name
+  def HCluster.describe_images(options,image_label = nil,search_all_visible_images = true)
+    if image_label
       options = {
         :owner_id => @@owner_id
       }.merge(options)
 
       retval = @@super_inst.describe_images(options)
-      #filter by image_name
+      #filter by image_label
       retval2 = retval['imagesSet']['item'].detect{
-        |image| image['name'] == image_name
+        |image| image['name'] == image_label
       }
 
       if (retval2 == nil and search_all_visible_images == true)
         options.delete(:owner_id)
-        puts "image '#{image_name}' not found in owner #{@owner_id}'s images; looking in all images (may take a while..)"
+        puts "image '#{image_label}' not found in owner #{@@owner_id}'s images; looking in all images (may take a while..)"
         retval = @@super_inst.describe_images(options)
-        #filter by image_name
+        #filter by image_label
         retval2 = retval['imagesSet']['item'].detect{
-          |image| image['name'] == image_name
+          |image| image['name'] == image_label
         }
       end
       retval2
@@ -797,35 +797,36 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def zk_image
-    get_image(@zk_image_name)
+    puts "looking for img: #{@zk_image_label}"
+    get_image(@zk_image_label)
   end
 
   def regionserver_image
-    get_image(@slave_image_name)
+    get_image(@slave_image_label)
   end
 
   def master_image
-    get_image(@master_image_name)
+    get_image(@master_image_label)
   end
 
-  def find_owned_image(image_name)
-    return describe_images({:owner_id => @owner_id},image_name,false)
+  def find_owned_image(image_label)
+    return describe_images({:owner_id => @@owner_id},image_label,false)
   end
 
-  def get_image(image_name)
-    matching_image = describe_images({:owner_id => @owner_id},image_name)
+  def get_image(image_label)
+    matching_image = describe_images({:owner_id => @@owner_id},image_label)
     if matching_image
       matching_image
     else
       raise HClusterStartError,
-      "describe_images({:owner_id => '#{@owner_id}'},'#{image_name}'): couldn't find #{image_name}, even in all of Amazon's viewable images."
+      "describe_images({:owner_id => '#{@@owner_id}'},'#{image_label}'): couldn't find #{image_label}, even in all of Amazon's viewable images."
     end
   end
 
-  def if_null_image(retval,image_name)
+  def if_null_image(retval,image_label)
     if !retval
       raise HClusterStartError, 
-      "Could not find image '#{image_name}' in instances viewable by AWS Account ID: '#{@owner_id}'."
+      "Could not find image '#{image_label}' in instances viewable by AWS Account ID: '#{@@owner_id}'."
     end
   end
 
