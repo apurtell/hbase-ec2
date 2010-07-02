@@ -27,8 +27,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   # I feel like the describe_images method should be a class,
   # not, as in AWS::EC2::Base, an object method,
   # so I use this in HCluster::describe_images.
+  # This is used to look up images, and is read-only, so no race conditions are possible.
   begin
-    @@super_inst = AWS::EC2::Base.new({
+    @@shared_base_object = AWS::EC2::Base.new({
                                         :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
                                         :secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY']
                                       })
@@ -36,6 +37,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "ooops..maybe you didn't define AMAZON_ACCESS_KEY_ID or AMAZON_SECRET_ACCESS_KEY? "
   end
 
+  #FIXME: remove :owner_id: it is a Class member, not an Object member.
   attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_label,
   :master_image_label, :slave_image_label, :aux_image_label, :owner_id,
   :image_creator,:options
@@ -57,15 +59,31 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     if ENV['HBASE_VERSION']
       options = {
-        :image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:master_arch]}",
         :zk_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:zk_arch]}",
         :master_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:master_arch]}",
         :slave_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:slave_arch]}",
       }.merge(options)
     else
-      #check my_images..
+      # User has no HBASE_VERSION defined, so check my_images and use the first one. 
+      # If possible, would like to apply further filtering to find suitable images amongst 
+      # them rather than just picking first.
+      desc_images = HCluster.describe_images({:owner_id => @@owner_id})
+      if desc_images
+        desc_images = desc_images.imagesSet.item
+        if desc_images[0] && desc_images[0].name
+          puts "No HBASE_VERSION defined in your environment: using #{desc_images[0].name}."
+          options = {
+            :zk_image_label => desc_images[0].name,
+            :master_image_label => desc_images[0].name,
+            :slave_image_label => desc_images[0].name
+          }.merge(options)
+        else
+          raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with create_image()."
+        end
+      else
+        raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with create_image()."
+      end
     end
-
 
     # check env variables.
     raise HClusterStartError, 
@@ -264,7 +282,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "Label\t\t\t\tAMI"
     puts "=========================================="
     describe_images({:owner_id => @@owner_id}).imagesSet.item.each {|image| puts "#{image.name}\t\t#{image.imageId}"}
-    nil
   end
 
   def create_image(options = {})
@@ -782,7 +799,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         :owner_id => @@owner_id
       }.merge(options)
 
-      retval = @@super_inst.describe_images(options)
+      retval = @@shared_base_object.describe_images(options)
       #filter by image_label
       retval2 = retval['imagesSet']['item'].detect{
         |image| image['name'] == image_label
@@ -791,7 +808,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       if (retval2 == nil and search_all_visible_images == true)
         options.delete(:owner_id)
         puts "image '#{image_label}' not found in owner #{@@owner_id}'s images; looking in all images (may take a while..)"
-        retval = @@super_inst.describe_images(options)
+        retval = @@shared_base_object.describe_images(options)
         #filter by image_label
         retval2 = retval['imagesSet']['item'].detect{
           |image| image['name'] == image_label
@@ -799,7 +816,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
       retval2
     else
-      @@super_inst.describe_images(options)
+      @@shared_base_object.describe_images(options)
     end
   end
 
