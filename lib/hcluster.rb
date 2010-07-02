@@ -39,9 +39,32 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "ooops..maybe you didn't define AMAZON_ACCESS_KEY_ID or AMAZON_SECRET_ACCESS_KEY? "
   end
 
-  attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_name, :master_image_name, :slave_image_name, :aux_image_name, :owner_id,:image_creator,:options
+  attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_label,
+  :master_image_label, :slave_image_label, :aux_image_label, :owner_id,
+  :image_creator,:options
 
-  def initialize( name, options = {} )
+  def initialize( options = {} )
+    options = {
+      :num_regionservers => 5,
+      :num_zookeepers => 1,
+      :launch_aux => false,
+      :zk_arch => "x86_64",
+      :master_arch => "x86_64",
+      :slave_arch => "x86_64",
+      :debug_level => 0,
+      :validate_images => true,
+      :security_group_prefix => "hcluster",
+      :separate_security_groups => true
+    }.merge(options)
+
+    options = {
+      :image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:master_arch]}",
+      :zk_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:zk_arch]}",
+      :master_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:master_arch]}",
+      :slave_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:slave_arch]}",
+    }.merge(options)
+
+    # check env variables.
     raise HClusterStartError, 
     "AMAZON_ACCESS_KEY_ID is not defined in your environment." unless ENV['AMAZON_ACCESS_KEY_ID']
 
@@ -54,39 +77,23 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
 
     super(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
-    raise ArgumentError, 
-    "HCluster name '#{name}' is already in use for cluster:\n#{@@clusters[name]}\n" if @@clusters[name]
 
     #architectures: either "x86_64" or "i386".
     @zk_arch = "x86_64"
     @master_arch = "x86_64"
     @slave_arch = "x86_64"
 
-    options = { 
-      :num_regionservers => 5,
-      :num_zookeepers => 1,
-      :launch_aux => false,
-      :zk_image_name => "hbase-#{ENV['HBASE_VERSION']}-#{@zk_arch}",
-      :master_image_name => "hbase-#{ENV['HBASE_VERSION']}-#{@master_arch}",
-      :slave_image_name => "hbase-#{ENV['HBASE_VERSION']}-#{@slave_arch}",
-      :debug_level => 0,
-      :validate_images => true,
-      :security_group_prefix => @name,
-      :separate_security_groups => true
-    }.merge(options)
-
     #for debugging
     @options = options
 
     @lock = Monitor.new
     
-    @name = name
     @num_regionservers = options[:num_regionservers]
     @num_zookeepers = options[:num_zookeepers]
     @launch_aux = options[:launch_aux]
     @debug_level = options[:debug_level]
 
-    @@clusters[name] = self
+    @@clusters.push self
 
     @zks = []
     @master = nil
@@ -418,7 +425,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def init_hbase_cluster_secgroups
-    # create security group @name, @name_master, and @name_slave
+    # create security groups if necessary.
     groups = describe_security_groups
     found_master = false
     found_rs = false
