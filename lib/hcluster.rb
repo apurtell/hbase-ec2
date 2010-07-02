@@ -182,9 +182,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     #machine instance types
 #    @zk_instance_type = "m1.small"
-    @zk_instance_type = "c1.xlarge"
-    @rs_instance_type = "c1.xlarge"
-    @master_instance_type = "c1.xlarge"
+#    @zk_instance_type = "c1.xlarge"
+#    @rs_instance_type = "c1.xlarge"
+#    @master_instance_type = "c1.xlarge"
+    @zk_instance_type = "m1.large"
+    @rs_instance_type = "m1.large"
+    @master_instance_type = "m1.large"
 
     #ssh keys
     @zk_key_name = "root"
@@ -705,13 +708,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # <ssh key>
     HCluster::scp_to(master.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
-    HCluster::ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
+    HCluster::ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",HCluster::consume_output,HCluster::consume_output,nil,nil)
     # </ssh key>
         
     # <master init script>
     init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
     HCluster::scp_to(master.dnsName,init_script,"/root/#{@@remote_init_script}")
-    HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
+    HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
     HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
                     HCluster::summarize_output,HCluster::summarize_output,"[setup:master:#{master.dnsName}","]\n")
@@ -725,11 +728,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       # <ssh key>
       HCluster::scp_to(slave.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
       #FIXME: should be 400 probably.
-      HCluster::ssh_to(slave.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
+      HCluster::ssh_to(slave.dnsName,"chmod 600 /root/.ssh/id_rsa",HCluster::consume_output,HCluster::consume_output,nil,nil)
       # </ssh key>
 
       HCluster::scp_to(slave.dnsName,init_script,"/root/#{@@remote_init_script}")
-      HCluster::ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
+      HCluster::ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
       HCluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
                       HCluster::summarize_output,HCluster::summarize_output,"[setup:rs:#{slave.dnsName}","]\n")
     }
@@ -744,12 +747,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # <ssh key>
     HCluster::scp_to(dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
-    HCluster::ssh_to(dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
+    HCluster::ssh_to(dnsName,"chmod 600 /root/.ssh/id_rsa",HCluster::consume_output,HCluster::consume_output,nil,nil)
     # </ssh key>
 
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@remote_init_script}"
     HCluster::scp_to(dnsName,init_script,"/root/#{@@remote_init_script}")
-    HCluster::ssh_to(dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
+    HCluster::ssh_to(dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
     HCluster::ssh_to(dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
                     HCluster::summarize_output,HCluster::summarize_output,"[setup:aux:#{dnsName}","]\n")
   end
@@ -1019,7 +1022,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       connected = false
       until connected == true
         begin
-          ssh_to(instance.dnsName,"true",consume_output,consume_output,nil,nil)
+          ssh_to(instance.dnsName,"true",HCluster::consume_output,HCluster::consume_output,nil,nil)
           connected = true
         rescue Net::SSH::AuthenticationFailed
           if debug_level > 0
