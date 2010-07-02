@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
-# ZOOKEEPER_QUORUM set in the environment by the caller
-HBASE_HOME=`ls -d /usr/local/hbase-*`
+# ZOOKEEPER_QUORUM must be set in the environment by the caller.
+HBASE_HOME=`ls -d /usr/local/hbase-* | grep -v tar.gz | head -n1`
+set -x
+export JAVA_HOME=/usr/local/jdk1.6.0_20
 
 ###############################################################################
 # HBase configuration (Zookeeper)

@@ -15,12 +15,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#enable checking: if a command exits with an error and the caller does not check such error, the script aborts immediately. 
+set -e
+#enable tracing
+set -x
+
 # Create a Hbase AMI. Runs on the EC2 instance.
 
 # Import variables
 bin=`dirname "$0"`
 bin=`cd "$bin"; pwd`
-. "$bin"/hbase-ec2-env.sh
 
 type=$INSTANCE_TYPE
 [ -z "$type" ] && type=$SLAVE_INSTANCE_TYPE
@@ -29,15 +33,12 @@ arch=$ARCH
 
 echo "Remote: INSTANCE_TYPE is $type"
 echo "Remote: ARCH is $arch"
-
-# Perform any URL substitutions that must be done at this late stage
-JAVA_URL=`echo $JAVA_URL | sed -e "s/@arch@/$arch/g"`
-
-# Remove sensitive information
-rm -f "$bin"/hbase-ec2-env.sh
-rm -f "$bin"/credentials.sh
+echo "Hadoop version: $HADOOP_VERSION"
+echo "Hbase version: $HBASE_VERSION"
 
 # Install Java
+# Perform any URL substitutions that must be done at this late stage
+JAVA_URL=`echo $JAVA_URL | sed -e "s/@arch@/$arch/g"`
 echo "Downloading and installing java binary."
 cd /usr/local
 wget -nv -O java.bin $JAVA_URL
@@ -46,15 +47,15 @@ rm -f java.bin
 ln -s `find /usr/local -type d -maxdepth 1 -type d -name "jdk*" | head -n 1 ` /usr/local/jdk
 
 echo "Downloading and installing Jruby."
-wget -nv http://ekoontz-tarballs.s3.amazonaws.com/jruby-bin-1.5.0.RC1.tar.gz
-tar --directory=/usr/local/ -x -z -f jruby-bin-1.5.0.RC1.tar.gz
-ln -s /usr/local/jruby-1.5.0.RC1 /usr/local/jruby
+wget -nv http://ekoontz-tarballs.s3.amazonaws.com/jruby-bin-1.5.1.tar.gz
+tar --directory=/usr/local/ -x -z -f jruby-bin-1.5.1.tar.gz
+ln -s /usr/local/jruby-1.5.1 /usr/local/jruby
 echo "Done."
 
 # Install tools
 echo "Installing rpms."
 yum -y update
-yum -y install rsync lynx screen ganglia-gmetad ganglia-gmond ganglia-web httpd php lzo-devel xfsprogs emacs-nox
+yum -y install lynx screen ganglia-gmetad ganglia-gmond ganglia-web httpd php lzo-devel xfsprogs emacs-nox
 yum -y clean all
 chkconfig --levels 0123456 httpd off
 chkconfig --levels 0123456 gmetad off
@@ -67,28 +68,31 @@ wget -nv $HADOOP_URL
 tar xzf hadoop-$HADOOP_VERSION.tar.gz
 rm -f hadoop-$HADOOP_VERSION.tar.gz
 
+# Install HBase
+echo "Installing HBase $HBASE_VERSION."
+cd /usr/local
+wget -nv $HBASE_URL
+tar xzf $HBASE_FILE
+rm -f $HBASE_FILE
+
 # Configure Hadoop
-sed -i \
-  -e "s|# export JAVA_HOME=.*|export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}|"\
-  -e 's|# export HADOOP_LOG_DIR=.*|export HADOOP_LOG_DIR=/mnt/hadoop/logs|' \
-  -e 's|# export HADOOP_SLAVE_SLEEP=.*|export HADOOP_SLAVE_SLEEP=1|' \
-  -e 's|# export HADOOP_OPTS=.*|export HADOOP_OPTS=-server|' \
-  /usr/local/hadoop-$HADOOP_VERSION/conf/hadoop-env.sh
+echo "export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}
+export HADOOP_LOG_DIR=/mnt/hadoop/logs
+export HADOOP_SLAVE_SLEEP=1
+export HADOOP_OPTS=-server" >> /usr/local/hadoop-$HADOOP_VERSION/conf/hadoop-env.sh
 
 # Install HBase
 echo "Installing HBase $HBASE_VERSION."
 cd /usr/local
 wget -nv $HBASE_URL
-tar xzf hbase-$HBASE_VERSION.tar.gz
-rm -f hbase-$HBASE_VERSION.tar.gz
+tar xzf $HBASE_FILE
+rm -f $HBASE_FILE
 
 # Configure HBase
-sed -i \
-  -e "s|# export JAVA_HOME=.*|export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}|"\
-  -e 's|# export HBASE_OPTS=.*|export HBASE_OPTS="$HBASE_OPTS -server -XX:+HeapDumpOnOutOfMemoryError"|' \
-  -e 's|# export HBASE_LOG_DIR=.*|export HBASE_LOG_DIR=/mnt/hbase/logs|' \
-  -e 's|# export HBASE_SLAVE_SLEEP=.*|export HBASE_SLAVE_SLEEP=1|' \
-  /usr/local/hbase-$HBASE_VERSION/conf/hbase-env.sh
+echo "export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}
+export HBASE_OPTS=\"$HBASE_OPTS -server -XX:+HeapDumpOnOutOfMemoryError\"
+export HBASE_LOG_DIR=/mnt/hbase/logs
+export HBASE_SLAVE_SLEEP=1" >> /usr/local/hbase-$HBASE_VERSION/conf/hadoop-env.sh
 
 # Run user data as script on instance startup
 chmod +x /etc/init.d/ec2-run-user-data
@@ -103,7 +107,7 @@ echo 'export PATH=$JAVA_HOME/bin:$HADOOP_HOME/bin:$HBASE_HOME/bin:$PATH' >> /roo
 
 # Configure networking.
 # Delete SSH authorized_keys since it includes the key it was launched with. (Note that it is re-populated when an instance starts.)
-rm -f /root/.ssh/authorized_keys
+#rm -f /root/.ssh/authorized_keys
 # Ensure logging in to new hosts is seamless.
 echo '    StrictHostKeyChecking no' >> /etc/ssh/ssh_config
 
@@ -112,15 +116,15 @@ echo "Installing LZO codec support"
 wget -nv -O /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz $LZO_URL
 cd /usr/local/hadoop-${HADOOP_VERSION} && tar xzf /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
 cd /usr/local/hbase-${HBASE_VERSION} && tar xzf /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
-rm -f /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
+#rm -f /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
 
 # Bundle and upload image
 cd ~root
 # Don't need to delete .bash_history since it isn't written until exit.
 df -h
-ec2-bundle-vol -d /mnt -k /mnt/pk*.pem -c /mnt/cert*.pem -u $AWS_ACCOUNT_ID -s 3072 -p hbase-$HBASE_VERSION-$arch -r $arch
+ec2-bundle-vol -d /mnt -k /mnt/root.pem -c /mnt/cert.pem -u $AWS_ACCOUNT_ID -s 3072 -p hbase-$HBASE_VERSION-$arch -r $arch
 
-ec2-upload-bundle -b $S3_BUCKET -m /mnt/hbase-$HBASE_VERSION-$arch.manifest.xml -a $AWS_ACCESS_KEY_ID -s $AWS_SECRET_ACCESS_KEY
+ec2-upload-bundle --secret-key $AWS_SECRET_ACCESS_KEY  --bucket $S3_BUCKET -m /mnt/hbase-$HBASE_VERSION-$arch.manifest.xml --access-key $AWS_ACCESS_KEY_ID
 
 # End
 echo Done
