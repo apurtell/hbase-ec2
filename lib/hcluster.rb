@@ -633,16 +633,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   def setup_zookeepers(zks)
     #when zookeepers are ready, copy info over to them..
     #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
-    Cluster::until_ssh_able(zks)
+    HCluster::until_ssh_able(zks)
     zks.each {|zk|
       if (@debug_level > 0)
         puts "zk dnsname: #{zk.dnsName}"
       end
-      Cluster::scp_to(zk.dnsName,File.dirname(__FILE__) +"/../bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
+      HCluster::scp_to(zk.dnsName,File.dirname(__FILE__) +"/../bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
       #note that ZOOKEEPER_QUORUM is not yet set, but we don't 
       # need it set to start the zookeeper(s) themselves, 
       # so we can remove the ZOOKEEPER_QUORUM=.. from the following.
-      Cluster::ssh_to(zk.dnsName,
+      HCluster::ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
              summarize_output,summarize_output,
              "[setup:zk:#{zk.dnsName}",
@@ -699,38 +699,38 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @dnsName = master.dnsName
     @master = master
 
-    Cluster::until_ssh_able([master])
+    HCluster::until_ssh_able([master])
 
     @master.state = "running"
     # <ssh key>
-    Cluster::scp_to(master.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
+    HCluster::scp_to(master.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
-    Cluster::ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
+    HCluster::ssh_to(master.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
     # </ssh key>
         
     # <master init script>
     init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
-    Cluster::scp_to(master.dnsName,init_script,"/root/#{@@remote_init_script}")
-    Cluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
+    HCluster::scp_to(master.dnsName,init_script,"/root/#{@@remote_init_script}")
+    HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
-    Cluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+    HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
                     summarize_output,summarize_output,"[setup:master:#{master.dnsName}","]\n")
   end
 
   def setup_slaves(slaves) 
     init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
     #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
-    Cluster::until_ssh_able(slaves)
+    HCluster::until_ssh_able(slaves)
     slaves.each {|slave|
       # <ssh key>
-      Cluster::scp_to(slave.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
+      HCluster::scp_to(slave.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
       #FIXME: should be 400 probably.
-      Cluster::ssh_to(slave.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
+      HCluster::ssh_to(slave.dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
       # </ssh key>
 
-      Cluster::scp_to(slave.dnsName,init_script,"/root/#{@@remote_init_script}")
-      Cluster::ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
-      Cluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+      HCluster::scp_to(slave.dnsName,init_script,"/root/#{@@remote_init_script}")
+      HCluster::ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
+      HCluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
                       summarize_output,summarize_output,"[setup:rs:#{slave.dnsName}","]\n")
     }
   end
@@ -742,15 +742,15 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     dnsName = aux.dnsName
 
     # <ssh key>
-    Cluster::scp_to(dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
+    HCluster::scp_to(dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
     #FIXME: should be 400 probably.
-    Cluster::ssh_to(dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
+    HCluster::ssh_to(dnsName,"chmod 600 /root/.ssh/id_rsa",consume_output,consume_output,nil,nil)
     # </ssh key>
 
     init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@remote_init_script}"
-    Cluster::scp_to(dnsName,init_script,"/root/#{@@remote_init_script}")
-    Cluster::ssh_to(dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
-    Cluster::ssh_to(dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+    HCluster::scp_to(dnsName,init_script,"/root/#{@@remote_init_script}")
+    HCluster::ssh_to(dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
+    HCluster::ssh_to(dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
                     summarize_output,summarize_output,"[setup:aux:#{dnsName}","]\n")
   end
 
