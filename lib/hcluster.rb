@@ -139,12 +139,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       @zk_security_group = @security_group_prefix + "-zk"
       @rs_security_group = @security_group_prefix
       @master_security_group = @security_group_prefix + "-master"
-      @aux_security_group = @security_group_prefix + "-aux"
+      if options[:launch_aux] == true
+        @aux_security_group = @security_group_prefix + "-aux"
+      end
     else
       @zk_security_group = @security_group_prefix
       @rs_security_group = @security_group_prefix
       @master_security_group = @security_group_prefix
-      @aux_security_group = @security_group_prefix
+      if options[:launch_aux] == true
+        @aux_security_group = @security_group_prefix
+      end
     end
 
     #machine instance types
@@ -449,7 +453,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
     }
 
-    if (found_aux == false) 
+    if (found_aux == false && options[:launch_aux] == true)
       puts "creating new security group: #{@security_group_prefix}-aux.."
       create_security_group({
         :group_name => "#{@security_group_prefix}-aux",
