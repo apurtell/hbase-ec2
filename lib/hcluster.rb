@@ -22,9 +22,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   @@remote_init_script = "hbase-ec2-init-remote.sh"
 
   @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
-#  @@default_base_ami_image = "ami-70668e19"   # my trunk instance.
-  @@m1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
-  @@c1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
   @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
 
   # I feel like the describe_images method should be a class,
