@@ -25,7 +25,6 @@ set -x
 # Import variables
 bin=`dirname "$0"`
 bin=`cd "$bin"; pwd`
-#. "$bin"/hbase-ec2-env.sh
 
 type=$INSTANCE_TYPE
 [ -z "$type" ] && type=$SLAVE_INSTANCE_TYPE
@@ -36,15 +35,16 @@ echo "Remote: INSTANCE_TYPE is $type"
 echo "Remote: ARCH is $arch"
 echo "Hadoop version: $HADOOP_VERSION"
 echo "Hbase version: $HBASE_VERSION"
-# Perform any URL substitutions that must be done at this late stage
-JAVA_URL=`echo $JAVA_URL | sed -e "s/@arch@/$arch/g"`
 
 # Install Java
+# Perform any URL substitutions that must be done at this late stage
+JAVA_URL=`echo $JAVA_URL | sed -e "s/@arch@/$arch/g"`
 echo "Downloading and installing java binary."
 cd /usr/local
 wget -nv -O java.bin $JAVA_URL
 sh java.bin
 rm -f java.bin
+ln -s `find /usr/local -type d -maxdepth 1 -type d -name "jdk*" | head -n 1 ` /usr/local/jdk
 
 echo "Downloading and installing Jruby."
 wget -nv http://ekoontz-tarballs.s3.amazonaws.com/jruby-bin-1.5.1.tar.gz
@@ -68,6 +68,13 @@ wget -nv $HADOOP_URL
 tar xzf hadoop-$HADOOP_VERSION.tar.gz
 rm -f hadoop-$HADOOP_VERSION.tar.gz
 
+# Install HBase
+echo "Installing HBase $HBASE_VERSION."
+cd /usr/local
+wget -nv $HBASE_URL
+tar xzf $HBASE_FILE
+rm -f $HBASE_FILE
+
 # Configure Hadoop
 echo "export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}
 export HADOOP_LOG_DIR=/mnt/hadoop/logs
@@ -78,8 +85,8 @@ export HADOOP_OPTS=-server" >> /usr/local/hadoop-$HADOOP_VERSION/conf/hadoop-env
 echo "Installing HBase $HBASE_VERSION."
 cd /usr/local
 wget -nv $HBASE_URL
-tar xzf hbase-$HBASE_VERSION.tar.gz
-rm -f hbase-$HBASE_VERSION.tar.gz
+tar xzf $HBASE_FILE
+rm -f $HBASE_FILE
 
 # Configure HBase
 echo "export JAVA_HOME=/usr/local/jdk${JAVA_VERSION}
