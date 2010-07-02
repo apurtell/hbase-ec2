@@ -954,8 +954,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   # to a specific host (master by default).
   # If command == nil, open interactive channel.
   def ssh(command = nil,
-          stdout_line_reader = echo_stdout,
-          stderr_line_reader = echo_stderr,
+          stdout_line_reader = HCluster.echo_stdout,
+          stderr_line_reader = HCluster.echo_stderr,
           host = self.master.dnsName,
           begin_output = nil,
           end_output = nil)
