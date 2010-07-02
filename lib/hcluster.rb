@@ -644,7 +644,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       # so we can remove the ZOOKEEPER_QUORUM=.. from the following.
       HCluster::ssh_to(zk.dnsName,
              "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-             summarize_output,summarize_output,
+             HCluster::summarize_output,HCluster::summarize_output,
              "[setup:zk:#{zk.dnsName}",
              "]\n")
     }
@@ -714,7 +714,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
     # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
     HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-                    summarize_output,summarize_output,"[setup:master:#{master.dnsName}","]\n")
+                    HCluster::summarize_output,HCluster::summarize_output,"[setup:master:#{master.dnsName}","]\n")
   end
 
   def setup_slaves(slaves) 
@@ -731,7 +731,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       HCluster::scp_to(slave.dnsName,init_script,"/root/#{@@remote_init_script}")
       HCluster::ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
       HCluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-                      summarize_output,summarize_output,"[setup:rs:#{slave.dnsName}","]\n")
+                      HCluster::summarize_output,HCluster::summarize_output,"[setup:rs:#{slave.dnsName}","]\n")
     }
   end
 
@@ -751,7 +751,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     HCluster::scp_to(dnsName,init_script,"/root/#{@@remote_init_script}")
     HCluster::ssh_to(dnsName,"chmod 700 /root/#{@@remote_init_script}",consume_output,consume_output,nil,nil)
     HCluster::ssh_to(dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-                    summarize_output,summarize_output,"[setup:aux:#{dnsName}","]\n")
+                    HCluster::summarize_output,HCluster::summarize_output,"[setup:aux:#{dnsName}","]\n")
   end
 
   def terminate_zookeepers
