@@ -23,11 +23,20 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
   @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
+  
+  #architectures: either "x86_64" or "i386".
+  @@zk_arch = "x86_64"
+  @@master_arch = "x86_64"
+  @@slave_arch = "x86_64"
+
+  @@debug_level = 0
+
 
   # I feel like the describe_images method should be a class,
   # not, as in AWS::EC2::Base, an object method,
   # so I use this in HCluster::describe_images.
-  # This is used to look up images, and is read-only, so no race conditions are possible.
+  # This is used to look up images, and is read-only, (except for a usage of AWS::EC2::Base::register_image below)
+  # so hopefully, no race conditions are possible.
   begin
     @@shared_base_object = AWS::EC2::Base.new({
                                         :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
@@ -51,13 +60,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :zk_arch => "x86_64",
       :master_arch => "x86_64",
       :slave_arch => "x86_64",
-      :debug_level => 0,
+      :debug_level => @@debug_level,
       :validate_images => true,
       :security_group_prefix => "hcluster",
     }.merge(options)
 
     # using same security group for all instances does not work now, so forcing to be separate.
-    options[:separate_security_groups] = true.
+    options[:separate_security_groups] = true
 
     if ENV['HBASE_VERSION']
       options = {
@@ -286,7 +295,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     describe_images({:owner_id => @@owner_id}).imagesSet.item.each {|image| puts "#{image.name}\t\t#{image.imageId}"}
   end
 
-  def create_image(options = {})
+  def HCluster.create_image(options = {})
     options = {
       :hbase_version => "#{ENV['HBASE_VERSION']}",
       :hadoop_version => "#{ENV['HADOOP_VERSION']}",
@@ -318,7 +327,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
     
     type=slave_instance_type
-    arch=@slave_arch
+    arch=@@slave_arch
     
     image_label = "hbase-#{hbase_version}-#{arch}"
     existing_image = find_owned_image(image_label)
@@ -331,19 +340,24 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     
     puts "Creating and registering image: #{image_label}"
     puts "Starting a AMI with ID: #{@@default_base_ami_image}."
-    
-    @image_creator = do_launch({
-                                :image_id => @@default_base_ami_image,
-                                :key_name => "root",
-                                :instance_type => "m1.large"
-                              },"image-creator")[0]
-    
 
-    image_creator_hostname = @image_creator.dnsName
+    launch = do_launch({
+                       :image_id => @@default_base_ami_image,
+                       :key_name => "root",
+                       :instance_type => "m1.large"
+                     },"image-creator")
+
+    if (launch && launch[0])
+      image_creator = launch[0]
+    else 
+      raise "Could not launch image creator."
+    end
+
+    image_creator_hostname = image_creator.dnsName
     puts "Started image creator: #{image_creator_hostname}"
 
     puts "Copying scripts."
-    until_ssh_able([@image_creator])
+    until_ssh_able([image_creator])
     
     scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
     scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
@@ -370,7 +384,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     ssh_to(image_creator_hostname,
            "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
-           image_output_handler(options[:debug]))
+           HCluster.image_output_handler(options[:debug]))
     
     # Register image
     image_location = "#{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
@@ -378,26 +392,25 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # FIXME: notify maintainers: 
     # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not 
     # mention :name param (only :image_location).
-    registered_image = register_image({
-                     :name => image_label,
-                     :image_location => image_location,
-                     :description => 'HBase Cluster Image'
-                   })
+    registered_image = @@shared_base_object.register_image({
+                                                             :name => image_label,
+                                                             :image_location => image_location,
+                                                             :description => 'HBase Cluster Image'
+                                                           })
     
     puts "image registered."
     if (!(options[:debug] == true))
-      puts "shutting down image-builder #{@image_creator.instanceId}"
-      terminate_instances({
-                            :instance_id => @image_creator.instanceId
-                          })
-      @image_creator = nil
+      puts "shutting down image-builder #{image_creator.instanceId}"
+      @@shared_base_object.terminate_instances({
+                                                 :instance_id => image_creator.instanceId
+                                               })
     else
-      puts "not shutting down image creator: #{@image_creator.dnsName}"
+      puts "not shutting down image creator: #{image_creator.dnsName}"
     end
     registered_image.imageId
   end
 
-  def image_output_handler(debug)
+  def HCluster.image_output_handler(debug)
     #includes code to get past Sun/Oracle's JDK License consent prompts.
     lambda{|line,channel|
       if (debug == true)
@@ -547,8 +560,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   end
 
-  def do_launch(options,name="",on_boot = nil)
-    instances = run_instances(options)
+  def HCluster.do_launch(options,name="",on_boot = nil)
+    instances = @@shared_base_object.run_instances(options)
     watch(name,instances)
     if on_boot
       on_boot.call(instances.instancesSet.item)
@@ -556,7 +569,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     return instances.instancesSet.item
   end
 
-  def watch(name,instances,begin_output = "[launch:#{name}",end_output = "]\n")
+  def HCluster.watch(name,instances,begin_output = "[launch:#{name}",end_output = "]\n",debug_level = @@debug_level)
     # note: this aws_connection is separate for this watch() function call:
     # this will hopefully allow us to run watch() in a separate thread if desired.
     aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
@@ -567,6 +580,12 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     wait = true
     until wait == false
       wait = false
+      if instances.instancesSet == nil
+        raise "instances.instancesSet is nil."
+      end
+      if instances.instancesSet.item == nil
+        raise "instances.instancesSet.item is nil."
+      end
       instances.instancesSet.item.each_index {|i| 
         instance = instances.instancesSet.item[i]
         # get status of instance instance.instanceId.
@@ -577,7 +596,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
             wait = true
           else
             #instance is running 
-            if @debug_level > 0
+            if debug_level > 0
               puts "watch(#{name}): #{instance.instanceId} : #{status}"
             end
             instances.instancesSet.item[i] = instance_info
@@ -779,12 +798,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     @aux = nil
   end
 
-  def terminate_image_creator
-    if @image_creator && @image_creator['instanceId']
-      terminate_instances({:instance_id => @image_creator['instanceId']})
-    end
-  end
-
   def describe_instances(options = {})
     retval = nil
     @lock.synchronize {
@@ -834,7 +847,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     get_image(@master_image_label)
   end
 
-  def find_owned_image(image_label)
+  def HCluster.find_owned_image(image_label)
     return describe_images({:owner_id => @@owner_id},image_label,false)
   end
 
@@ -863,31 +876,16 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   #If command == nil, open interactive channel.
-  def ssh_to(host,command = nil,
+  def HCluster.ssh_to(host,command = nil,
              stdout_line_reader = lambda{|line,channel| puts line},
              stderr_line_reader = lambda{|line,channel| puts "(stderr): #{line}"},
              begin_output = nil,
              end_output = nil)
     # variant of ssh with different param ordering.
-    ssh(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
+    ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
   end
 
-  # Send a command and handle stdout and stderr 
-  # with supplied anonymous functions (puts by default)
-  # to a specific host (master by default).
-  # If command == nil, open interactive channel.
-  def ssh(command = nil,
-          stdout_line_reader = echo_stdout,
-          stderr_line_reader = echo_stderr,
-          host = self.master.dnsName,
-          begin_output = nil,
-          end_output = nil)
-#    # FIXME: if self.state is not running, then allow queuing of ssh commands, if desired.
-    if (host == @dnsName)
-      raise HClusterStateError,
-      "HCluster '#{@name}' has no master hostname. Cluster summary:\n#{self.to_s}\n" if (host == nil)
-    end
-
+  def HCluster.ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
     if command == nil
       interactive = true
     end
@@ -948,7 +946,25 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     end
   end
 
-  def scp_to(host,local_path,remote_path)
+  # Send a command and handle stdout and stderr 
+  # with supplied anonymous functions (puts by default)
+  # to a specific host (master by default).
+  # If command == nil, open interactive channel.
+  def ssh(command = nil,
+          stdout_line_reader = echo_stdout,
+          stderr_line_reader = echo_stderr,
+          host = self.master.dnsName,
+          begin_output = nil,
+          end_output = nil)
+    if (host == @dnsName)
+      raise HClusterStateError,
+      "This HCluster has no master hostname. Cluster summary:\n#{self.to_s}\n" if (host == nil)
+    end
+
+    ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
+  end
+
+  def HCluster.scp_to(host,local_path,remote_path)
     #http://net-ssh.rubyforge.org/scp/v1/api/classes/Net/SCP.html#M000005
     # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
     # and their servers' private keys will vary.
@@ -998,7 +1014,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     return retval
   end
 
-  def until_ssh_able(instances)
+  def HCluster.until_ssh_able(instances,debug_level = @@debug_level)
     instances.each {|instance|
       connected = false
       until connected == true
@@ -1006,17 +1022,17 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
           ssh_to(instance.dnsName,"true",consume_output,consume_output,nil,nil)
           connected = true
         rescue Net::SSH::AuthenticationFailed
-          if @debug_level > 0
+          if debug_level > 0
             puts "host: #{instance.dnsName} not ready yet - waiting.."
           end
           sleep 5
         rescue Errno::ECONNREFUSED
-          if @debug_level > 0
+          if debug_level > 0
             puts "host: #{instance.dnsName} not ready yet - waiting.."
           end
           sleep 5
         rescue Errno::ETIMEDOUT
-          if @debug_level > 0
+          if debug_level > 0
             puts "host: #{instance.dnsName} not ready yet - waiting.."
           end
           sleep 5
@@ -1025,25 +1041,25 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     }
   end
 
-  def echo_stdout
+  def HCluster.echo_stdout
     return lambda{|line,channel|
       puts line
     }
   end
 
-  def echo_stderr 
+  def HCluster.echo_stderr 
     return lambda{|line,channel|
       puts "(stderr): #{line}"
     }
   end
 
-  def consume_output 
+  def HCluster.consume_output 
     #don't print anything for each line.
     return lambda{|line|
     }
   end
 
-  def summarize_output
+  def HCluster.summarize_output
     #output one '.' per line.
     return lambda{|line,channel|
       putc "."
