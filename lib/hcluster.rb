@@ -945,7 +945,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
   
   def to_s
-    retval = "HCluster '#{@name}' (state='#{@state}'): #{@num_regionservers} regionserver#{((@numregionservers == 1) && '') || 's'}; #{@num_zookeepers} zookeeper#{((@num_zookeepers == 1) && '') || 's'}"
+    retval = "HCluster (state='#{@state}'): #{@num_regionservers} regionserver#{((@numregionservers == 1) && '') || 's'}; #{@num_zookeepers} zookeeper#{((@num_zookeepers == 1) && '') || 's'}"
     if (@aux) 
       retval = retval + "; 1 aux"
     end
