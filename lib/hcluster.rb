@@ -53,7 +53,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def initialize( options = {} )
     options = {
-      :hbase_region => ENV['HBASE_REGION'],
+      :hbase_version => ENV['HBASE_VERSION'],
       :num_regionservers => 3,
       :num_zookeepers => 1,
       :launch_aux => false,
@@ -68,11 +68,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     # using same security group for all instances does not work now, so forcing to be separate.
     options[:separate_security_groups] = true
 
-    if ENV['HBASE_VERSION']
+    if options[:hbase_version]
       options = {
-        :zk_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:zk_arch]}",
-        :master_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:master_arch]}",
-        :slave_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:slave_arch]}",
+        :zk_image_label => "hbase-#{options[:hbase_version]}-#{options[:zk_arch]}",
+        :master_image_label => "hbase-#{options[:hbase_version]}-#{options[:master_arch]}",
+        :slave_image_label => "hbase-#{options[:hbase_version]}-#{options[:slave_arch]}",
       }.merge(options)
     else
       # User has no HBASE_VERSION defined, so check my_images and use the first one. 
