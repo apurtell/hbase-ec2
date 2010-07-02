@@ -961,7 +961,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       "This HCluster has no master hostname. Cluster summary:\n#{self.to_s}\n" if (host == nil)
     end
 
-    ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
+    HCluster.ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
   end
 
   def HCluster.scp_to(host,local_path,remote_path)
