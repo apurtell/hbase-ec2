@@ -25,6 +25,19 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 #  @@default_base_ami_image = "ami-70668e19"   # my trunk instance.
   @@m1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
   @@c1_small_ami_image = "ami-48aa4921"       # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
+  @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
+
+  # I feel like the describe_images method should be a class,
+  # not, as in AWS::EC2::Base, an object method,
+  # so I use this in HCluster::describe_images.
+  begin
+    @@super_inst = AWS::EC2::Base.new({
+                                        :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
+                                        :secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY']
+                                      })
+  rescue
+    puts "ooops..maybe you didn't define AMAZON_ACCESS_KEY_ID or AMAZON_SECRET_ACCESS_KEY? "
+  end
 
   attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_name, :master_image_name, :slave_image_name, :aux_image_name, :owner_id,:image_creator,:options
 
@@ -38,7 +51,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     raise HClusterStartError,
     "AWS_ACCOUNT_ID is not defined in your environment." unless ENV['AWS_ACCOUNT_ID']
     # remove dashes so that describe_images() can find images owned by this owner.
-    @owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
+    @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
 
     super(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
     raise ArgumentError, 
@@ -232,8 +245,11 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   end
 
-  def my_images
-    describe_images({:owner_id => owner_id}).imagesSet.item.each {|image| puts "#{image.name}: #{image.imageId}"}
+  def HCluster.my_images
+    #FIXME: figure out fixed width/truncation for pretty printing tables.
+    puts "Label\t\t\t\tAMI"
+    puts "=========================================="
+    describe_images({:owner_id => @@owner_id}).imagesSet.item.each {|image| puts "#{image.name}\t\t#{image.imageId}"}
     nil
   end
 
@@ -746,13 +762,13 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   #overrides parent: tries to find image using owner_id, which will be faster to iterate through (in .detect loop)
   # if not found, tries all images.
-  def describe_images(options,image_name = nil,search_all_visible_images = true)
+  def HCluster.describe_images(options,image_name = nil,search_all_visible_images = true)
     if image_name
       options = {
-        :owner_id => @owner_id
+        :owner_id => @@owner_id
       }.merge(options)
 
-      retval = super(options)
+      retval = @@super_inst.describe_images(options)
       #filter by image_name
       retval2 = retval['imagesSet']['item'].detect{
         |image| image['name'] == image_name
@@ -761,7 +777,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       if (retval2 == nil and search_all_visible_images == true)
         options.delete(:owner_id)
         puts "image '#{image_name}' not found in owner #{@owner_id}'s images; looking in all images (may take a while..)"
-        retval = super(options)
+        retval = @@super_inst.describe_images(options)
         #filter by image_name
         retval2 = retval['imagesSet']['item'].detect{
           |image| image['name'] == image_name
@@ -769,7 +785,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       end
       retval2
     else
-      super(options)
+      @@super_inst.describe_images(options)
     end
   end
 
