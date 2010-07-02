@@ -627,7 +627,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:instance_type] = @zk_instance_type
     options[:key_name] = @zk_key_name
     options[:availability_zone] = @zone
-    @zks = do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks)})
+    @zks = HCluster.do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks)})
   end
 
   def setup_zookeepers(zks)
@@ -667,7 +667,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:instance_type] = @master_instance_type
     options[:key_name] = @master_key_name
     options[:availability_zone] = @zone
-    @master = do_launch(options,"master",lambda{|instances| setup_master(instances[0])})[0]
+    @master = HCluster.do_launch(options,"master",lambda{|instances| setup_master(instances[0])})[0]
   end
   
   def launch_slaves
@@ -679,7 +679,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     options[:instance_type] = @rs_instance_type
     options[:key_name] = @rs_key_name
     options[:availability_zone] = @zone
-    @slaves = do_launch(options,"rs",lambda{|instances|setup_slaves(instances)})
+    @slaves = HCluster.do_launch(options,"rs",lambda{|instances|setup_slaves(instances)})
   end
 
   def launch_aux
