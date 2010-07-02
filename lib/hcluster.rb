@@ -45,7 +45,8 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
   def initialize( options = {} )
     options = {
-      :num_regionservers => 5,
+      :hbase_region => ENV['HBASE_REGION'],
+      :num_regionservers => 3,
       :num_zookeepers => 1,
       :launch_aux => false,
       :zk_arch => "x86_64",
@@ -57,12 +58,17 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :separate_security_groups => true
     }.merge(options)
 
-    options = {
-      :image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:master_arch]}",
-      :zk_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:zk_arch]}",
-      :master_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:master_arch]}",
-      :slave_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:slave_arch]}",
-    }.merge(options)
+    if ENV['HBASE_VERSION']
+      options = {
+        :image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:master_arch]}",
+        :zk_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:zk_arch]}",
+        :master_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:master_arch]}",
+        :slave_image_label => "hbase-#{ENV['HBASE_VERSION']}-#{options[:slave_arch]}",
+      }.merge(options)
+    else
+      #check my_images..
+    end
+
 
     # check env variables.
     raise HClusterStartError, 
@@ -797,7 +803,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def zk_image
-    puts "looking for img: #{@zk_image_label}"
     get_image(@zk_image_label)
   end
 
@@ -814,7 +819,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
 
   def get_image(image_label)
-    matching_image = describe_images({:owner_id => @@owner_id},image_label)
+    matching_image = HCluster.describe_images({:owner_id => @@owner_id},image_label)
     if matching_image
       matching_image
     else
