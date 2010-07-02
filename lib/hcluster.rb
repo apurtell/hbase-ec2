@@ -54,8 +54,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       :debug_level => 0,
       :validate_images => true,
       :security_group_prefix => "hcluster",
-      :separate_security_groups => true
     }.merge(options)
+
+    # using same security group for all instances does not work now, so forcing to be separate.
+    options[:separate_security_groups] = true.
 
     if ENV['HBASE_VERSION']
       options = {
