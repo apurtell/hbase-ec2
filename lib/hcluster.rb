@@ -46,10 +46,9 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "ooops..maybe you didn't define AMAZON_ACCESS_KEY_ID or AMAZON_SECRET_ACCESS_KEY? "
   end
 
-  #FIXME: remove :owner_id: it is a Class member, not an Object member.
   attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_label,
   :master_image_label, :slave_image_label, :aux_image_label, :owner_id,
-  :image_creator,:options
+  :image_creator,:options,:hbase_version
 
   def initialize( options = {} )
     options = {
@@ -75,7 +74,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
         :slave_image_label => "hbase-#{options[:hbase_version]}-#{options[:slave_arch]}",
       }.merge(options)
     else
-      # User has no HBASE_VERSION defined, so check my_images and use the first one. 
+      # User has no HBASE_VERSION defined, so check my images and use the first one.
       # If possible, would like to apply further filtering to find suitable images amongst 
       # them rather than just picking first.
       desc_images = HCluster.describe_images({:owner_id => @@owner_id})
@@ -117,6 +116,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 
     #for debugging
     @options = options
+    @owner_id = @@owner_id
 
     @lock = Monitor.new
     
@@ -296,6 +296,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     puts "Label\t\t\t\tAMI"
     puts "=========================================="
     describe_images({:owner_id => @@owner_id}).imagesSet.item.each {|image| puts "#{image.name}\t\t#{image.imageId}"}
+    nil
   end
 
   def HCluster.create_image(options = {})
