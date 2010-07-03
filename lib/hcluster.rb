@@ -299,6 +299,10 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     nil
   end
 
+  def HCluster.deregister_image(image)
+    @@shared_base_object.deregister_image({:image_id => image})
+  end
+
   def HCluster.create_image(options = {})
     options = {
       :hbase_version => "#{ENV['HBASE_VERSION']}",
@@ -316,7 +320,6 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
                           })
       @image_creator = nil
     end
-
 
     hbase_version = options[:hbase_version]
     hadoop_version = options[:hadoop_version]
@@ -373,11 +376,14 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
     
     puts "running create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
 
-
-    hbase_file = "hbase-#{hbase_version}.tar.gz"
-    if hbase_version =~ /SNAPSHOT/
+    if (major_version(hbase_version) == 0) and (minor_version(hbase_version) < 21)
+      #Older format.
+      hbase_file = "hbase-#{hbase_version}.tar.gz"
+    else
+      #Newer format.
       hbase_file ="hbase-#{hbase_version}-bin.tar.gz"
     end
+
     hbase_url = "http://ekoontz-tarballs.s3.amazonaws.com/#{hbase_file}"
 
     hadoop_url = "http://ekoontz-tarballs.s3.amazonaws.com/hadoop-#{hadoop_version}.tar.gz"
@@ -1069,6 +1075,23 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
       putc "."
     }
   end
+  
+  def HCluster.major_version(version_string)
+    begin
+      /hbase-([0-9+])/.match(version_string)[1].to_i
+      rescue NoMethodError
+      "no minor version found for version #{version_string}."
+    end
+  end
+
+  def HCluster.minor_version(version_string)
+    begin
+      /hbase-[0-9+].([0-9]+)/.match(version_string)[1].to_i
+    rescue NoMethodError
+      "no minor version found for version '#{version_string}'."
+    end
+  end
+
 
 end
 
