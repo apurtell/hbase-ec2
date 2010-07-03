@@ -64,7 +64,7 @@ TestFDSIO.0.0.4
 10/06/22 19:44:32 INFO mapred.FileInputFormat:     Test exec time sec: 67.721
 10/06/22 19:44:32 INFO mapred.FileInputFormat: 
 => nil
->> >> cluster.terminate
+>> cluster.terminate
 terminating zookeeper: i-5144a73b
 terminating master: i-9344a7f9
 terminating regionserver: i-4d4aa927
@@ -75,5 +75,13 @@ terminating regionserver: i-454aa92f
 => {"name"=>"hdfs", "num_zookeepers"=>1, "master"=>"i-9344a7f9", "launchTime"=>"2010-06-22T23:22:13.000Z", "num_regionservers"=>5, "dnsName"=>"ec2-184-73-16-65.compute-1.amazonaws.com", "state"=>"terminated"}
 >> 
 
+h2. Creating Images
+
+pre.
+>> AWS::EC2::Base::HCluster.create_image({:hbase_version => '0.21.0-SNAPSHOT'})
+...
+image registered.
+shutting down image-builder i-29f90743
+=> "ami-ee40a887"
 
 
