@@ -4,6 +4,8 @@ require 'net/ssh'
 require 'net/scp'
 require 'AWS'
 
+module HCluster
+
 #FIXME: move to yaml config file.
 EC2_ROOT_SSH_KEY = "#{ENV['HOME']}/.ec2/root.pem"
 
@@ -17,7 +19,7 @@ end
 class HClusterStartError < StandardError
 end
 
-class AWS::EC2::Base::HCluster < AWS::EC2::Base
+class HCluster < AWS::EC2::Base
   @@clusters = []
   @@remote_init_script = "hbase-ec2-init-remote.sh"
 
@@ -996,7 +998,7 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
   end
   
   def to_s
-    retval = "HCluster (state='#{@state}'): #{@num_regionservers} regionserver#{((@numregionservers == 1) && '') || 's'}; #{@num_zookeepers} zookeeper#{((@num_zookeepers == 1) && '') || 's'}"
+    retval = "HCluster (state='#{@state}'): #{@num_regionservers} regionserver#{((@numregionservers == 1) && '') || 's'}; #{@num_zookeepers} zookeeper#{((@num_zookeepers == 1) && '') || 's'}; hbase_version:#{options[:hbase_version]};"
     if (@aux) 
       retval = retval + "; 1 aux"
     end
@@ -1096,4 +1098,4 @@ class AWS::EC2::Base::HCluster < AWS::EC2::Base
 end
 
 
-
+end
