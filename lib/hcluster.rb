@@ -335,7 +335,7 @@ module HCluster
       existing_image = find_owned_image(image_label)
       
       if existing_image
-        puts "Existing_image: #{existing_image.imageId} already registered for image name #{image_label}. Call deregister_image(:image_id => '#{existing_image.imageId}'), if desired."
+        puts "Existing image: #{existing_image.imageId} already registered for image name #{image_label}. Call deregister_image('#{existing_image.imageId}'), if desired."
         
         return existing_image.imageId
       end
@@ -370,6 +370,9 @@ module HCluster
       scp_to(image_creator_hostname,"#{ENV['HOME']}/.ec2/cert.pem","/mnt")
       
       puts "running create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
+      puts "  hbase major version: #{major_version(hbase_version)}"
+      puts "  hbase minor version: #{minor_version(hbase_version)}"
+
       
       if (major_version(hbase_version) == 0) and (minor_version(hbase_version) < 21)
         #Older format.
@@ -878,7 +881,7 @@ module HCluster
     
     def run_test(test,stdout_line_reader = lambda{|line,channel| puts line},stderr_line_reader = lambda{|line,channel| puts "(stderr): #{line}"})
       #fixme : fix hardwired version (first) then path to hadoop (later)
-      ssh("/usr/local/hadoop-0.20-tm-2/bin/hadoop jar /usr/local/hadoop-0.20-tm-2/hadoop-test-0.20-tm-2.jar #{test}",
+      ssh("/usr/local/hadoop/bin/hadoop jar /usr/local/hadoop/hadoop-test.jar #{test}",
           stdout_line_reader,
           stderr_line_reader)
     end
@@ -1076,7 +1079,7 @@ module HCluster
     
     def HCluster.major_version(version_string)
       begin
-        /hbase-([0-9+])/.match(version_string)[1].to_i
+        /(hbase-)?([0-9+])/.match(version_string)[2].to_i
       rescue NoMethodError
         "no minor version found for version #{version_string}."
       end
@@ -1084,7 +1087,7 @@ module HCluster
     
     def HCluster.minor_version(version_string)
       begin
-        /hbase-[0-9+].([0-9]+)/.match(version_string)[1].to_i
+        /(hbase-)?[0-9+].([0-9]+)/.match(version_string)[2].to_i
       rescue NoMethodError
         "no minor version found for version '#{version_string}'."
       end
