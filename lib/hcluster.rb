@@ -303,7 +303,7 @@ module HCluster
     
     def HCluster.deregister_image(image)
       @@shared_base_object.deregister_image({:image_id => image})
-  end
+    end
     
     def HCluster.create_image(options = {})
       options = {
@@ -328,16 +328,9 @@ module HCluster
       slave_instance_type = options[:slave_instance_type]
       user = options[:user]
       s3_bucket = options[:s3_bucket]
-      #...
-      # allow override of SLAVE_INSTANCE_TYPE from the command line 
-      #[ ! -z $1 ] && SLAVE_INSTANCE_TYPE=$1
-      if slave_instance_type == nil
-        slave_instance_type = @rs_instance_type
-      end
       
-      type=slave_instance_type
       arch=@@slave_arch
-      
+
       image_label = "hbase-#{hbase_version}-#{arch}"
       existing_image = find_owned_image(image_label)
       
@@ -392,10 +385,11 @@ module HCluster
       lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-0.20-tm-2.tar.gz"
       java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
       
-      puts("sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{ENV['AWS_ACCOUNT_ID']} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"")
+      puts("sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{ENV['AWS_ACCOUNT_ID']} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"")
       
       ssh_to(image_creator_hostname,
-             "sh -c \"INSTANCE_TYPE=#{type} ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
+             "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
+             HCluster.image_output_handler(options[:debug]),
              HCluster.image_output_handler(options[:debug]))
       
       # Register image
@@ -407,7 +401,7 @@ module HCluster
       registered_image = @@shared_base_object.register_image({
                                                                :name => image_label,
                                                                :image_location => image_location,
-                                                               :description => 'HBase Cluster Image'
+                                                               :description => "HBase Cluster Image: HBase Version: #{hbase_version}; Hadoop Version: #{hadoop_version}"
                                                              })
       
       puts "image registered."

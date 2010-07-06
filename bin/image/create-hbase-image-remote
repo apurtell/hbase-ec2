@@ -26,12 +26,9 @@ set -x
 bin=`dirname "$0"`
 bin=`cd "$bin"; pwd`
 
-type=$INSTANCE_TYPE
-[ -z "$type" ] && type=$SLAVE_INSTANCE_TYPE
 arch=$ARCH
 [ -z "$arch" ] && arch=$SLAVE_ARCH
 
-echo "Remote: INSTANCE_TYPE is $type"
 echo "Remote: ARCH is $arch"
 echo "Hadoop version: $HADOOP_VERSION"
 echo "Hbase version: $HBASE_VERSION"
