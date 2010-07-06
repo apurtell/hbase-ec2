@@ -1,8 +1,10 @@
 require 'hcluster'
 
-class AWS::EC2::Base::HCluster::TestDFSIO < AWS::EC2::Base::HCluster
-  def initialize(name = "hdfs", options = {} )
-    super(name,options)
+module HCluster
+
+class TestDFSIO < HCluster
+  def initialize(options = {} )
+    super(options)
   end
 
   def test(nrFiles=10,fileSize=1000)
@@ -13,11 +15,11 @@ class AWS::EC2::Base::HCluster::TestDFSIO < AWS::EC2::Base::HCluster
     result_pairs = {}
     av_lines = []
     run_test("TestDFSIO -write -nrFiles #{nrFiles} -fileSize #{fileSize}",
-             lambda{|line|
+             lambda{|line,ch|
                stdout = stdout + line
                puts line
              },
-             lambda{|line|
+             lambda{|line,ch|
                stderr = stderr + line
                #implement finite state machine
                if line =~ /-+ TestDFSIO -+/
@@ -49,4 +51,6 @@ class AWS::EC2::Base::HCluster::TestDFSIO < AWS::EC2::Base::HCluster
     retval_hash
 
   end
+end
+
 end

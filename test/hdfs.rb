@@ -2,7 +2,7 @@
 
 require 'test/unit'
 $:.unshift File.join(File.dirname(__FILE__),"..", "lib")
-require 'hcluster'
+require 'TestDFSIO.rb'
 
 def dump_hash(hash)
   hash.keys.each { |key|
@@ -11,8 +11,12 @@ def dump_hash(hash)
 end
 
 class TestHCluster < Test::Unit::TestCase
-  @@security_group = "hdfs-unit-test"
-  @@cluster = AWS::EC2::Base::HCluster.new(@@security_group)
+  @@security_group = "hdfs"
+  @@num_zookeepers = 1
+  @@num_regionservers = 3
+  @@cluster = HCluster::TestDFSIO.new({:security_group_prefix => @@security_group,
+                                        :num_zookeepers => @@num_zookeepers,
+                                        :num_regionservers => @@num_regionservers})
 
   def setup
     @@cluster.launch
@@ -25,7 +29,6 @@ class TestHCluster < Test::Unit::TestCase
   def test_run
     status = @@cluster.status
     dump_hash(status)
-    assert_equal(@@security_group,status['name'])
     assert("running" == status['state'])
     launchTime = status['launchTime']
     # second part of this disjunction is indended to only be true if launchTime is
@@ -40,7 +43,7 @@ class TestHCluster < Test::Unit::TestCase
 
     #FIX: add some tests for master..
 
-    test_results = @@cluster.hdfs_test
+    test_results = @@cluster.test
     assert(0 < test_results.size)
     assert(10000 == test_results['Total MBytes processed'])
   end
