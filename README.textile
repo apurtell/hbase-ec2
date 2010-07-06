@@ -40,14 +40,14 @@ $ irb
 ]
 >> load 'hcluster.rb'
 => true
->> cluster = AWS::EC2::Base::HCluster.new({:hbase_version => '0.20.5',:security_group_prefix => 'hdfs'})
-=> #<AWS::EC2::Base::HCluster:0x102a9f9b8 @rs_key_name="root", @slave_image_={"name"=>"hbase-0.20.5-x86_64", 
-   ...
+>> cluster = HCluster::HCluster.new
+=> #<HCluster::HCluster:0x1010e2098 @rs_key_name="root",
+...
 >> cluster.launch
 [launch:zk.........................]
-[setup:zk:ec2-67-202-23-72.compute-1.amazonaws.com.]
+[setup:zk.]
 [launch:master.......................]
-[setup:master:ec2-184-73-28-132.compute-1.amazonaws.com...................................................]
+[setup:master...................................................]
 [launch:rs....................]
 [setup:rs:ec2-184-73-7-119.compute-1.amazonaws.com....................................]
 [setup:rs:ec2-184-73-12-72.compute-1.amazonaws.com....................................]
@@ -75,13 +75,5 @@ terminating regionserver: i-454aa92f
 => {"name"=>"hdfs", "num_zookeepers"=>1, "master"=>"i-9344a7f9", "launchTime"=>"2010-06-22T23:22:13.000Z", "num_regionservers"=>5, "dnsName"=>"ec2-184-73-16-65.compute-1.amazonaws.com", "state"=>"terminated"}
 >> 
 
-h2. Creating Images
-
-pre.
->> AWS::EC2::Base::HCluster.create_image({:hbase_version => '0.21.0-SNAPSHOT'})
-...
-image registered.
-shutting down image-builder i-29f90743
-=> "ami-ee40a887"
 
 
