@@ -5,6 +5,17 @@ require 'net/scp'
 require 'AWS'
 
 module HCluster
+
+  class HImage 
+    def HImage::list
+      HCluster.my_images
+    end
+
+    def HImage::create_image
+      #..
+    end
+
+  end
   
   #FIXME: move to yaml config file.
   EC2_ROOT_SSH_KEY = "#{ENV['HOME']}/.ec2/root.pem"
@@ -53,8 +64,23 @@ module HCluster
     :master_image_label, :slave_image_label, :aux_image_label, :owner_id,
     :image_creator,:options,:hbase_version
     
+    def initialize_print_usage
+      puts ""
+      puts "HCluster.new"
+      puts "  options: (default)"
+      puts "   :label (nil) (see HCluster.my_images for a list of labels)"
+      puts ""
+      puts "HCluster.my_images shows a list of possible :label values."
+    end
+
     def initialize( options = {} )
+
+      if options.size == 0
+        return initialize_print_usage
+      end
+
       options = {
+        :label => nil,
         :hbase_version => ENV['HBASE_VERSION'],
         :num_regionservers => 3,
         :num_zookeepers => 1,
@@ -69,35 +95,44 @@ module HCluster
       
       # using same security group for all instances does not work now, so forcing to be separate.
       options[:separate_security_groups] = true
-      
-      if options[:hbase_version]
+
+      if options[:label]
         options = {
-          :zk_image_label => "hbase-#{options[:hbase_version]}-#{options[:zk_arch]}",
-          :master_image_label => "hbase-#{options[:hbase_version]}-#{options[:master_arch]}",
-          :slave_image_label => "hbase-#{options[:hbase_version]}-#{options[:slave_arch]}",
+          :zk_image_label => options[:label],
+          :master_image_label => options[:label],
+          :slave_image_label => options[:label]
         }.merge(options)
       else
-        # User has no HBASE_VERSION defined, so check my images and use the first one.
-        # If possible, would like to apply further filtering to find suitable images amongst 
-        # them rather than just picking first.
-        desc_images = HCluster.describe_images({:owner_id => @@owner_id})
-        if desc_images
-          desc_images = desc_images.imagesSet.item
-          if desc_images[0] && desc_images[0].name
-            puts "No HBASE_VERSION defined in your environment: using #{desc_images[0].name}."
-            options = {
-              :zk_image_label => desc_images[0].name,
-              :master_image_label => desc_images[0].name,
-              :slave_image_label => desc_images[0].name
-            }.merge(options)
+        if options[:hbase_version]
+          options = {
+            :zk_image_label => "hbase-#{options[:hbase_version]}-#{options[:zk_arch]}",
+            :master_image_label => "hbase-#{options[:hbase_version]}-#{options[:master_arch]}",
+            :slave_image_label => "hbase-#{options[:hbase_version]}-#{options[:slave_arch]}",
+          }.merge(options)
+        else
+          # User has no HBASE_VERSION defined, so check my images and use the first one.
+          # If possible, would like to apply further filtering to find suitable images amongst 
+          # them rather than just picking first.
+          desc_images = HCluster.describe_images({:owner_id => @@owner_id})
+          if desc_images
+            desc_images = desc_images.imagesSet.item
+            if desc_images[0] && desc_images[0].name
+              puts "No HBASE_VERSION defined in your environment: using #{desc_images[0].name}."
+              options = {
+                :zk_image_label => desc_images[0].name,
+                :master_image_label => desc_images[0].name,
+                :slave_image_label => desc_images[0].name
+              }.merge(options)
+            else
+              raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with create_image()."
+            end
           else
             raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with create_image()."
           end
-        else
-          raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with create_image()."
         end
+
       end
-      
+            
       # check env variables.
       raise HClusterStartError, 
       "AMAZON_ACCESS_KEY_ID is not defined in your environment." unless ENV['AMAZON_ACCESS_KEY_ID']
@@ -293,6 +328,10 @@ module HCluster
       
     end
     
+    def my_images
+      HCluster.my_images
+    end
+
     def HCluster.my_images
       #FIXME: figure out fixed width/truncation for pretty printing tables.
       puts "Label\t\t\t\tAMI"
@@ -320,15 +359,13 @@ module HCluster
       puts "  :user (ekoontz)"
       puts "  :s3_bucket (ekoontz-amis)"
       puts ""
-      puts "HCluster.my_images shows a list of label values."
+      puts "HCluster.my_images shows a list of possible :label values."
     end
     
     def HCluster.create_image(options = {})
-
       if options.size == 0
         return create_image_print_usage
       end
-
 
       options = {
         :label => nil,
