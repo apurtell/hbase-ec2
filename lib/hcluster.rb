@@ -304,9 +304,32 @@ module HCluster
     def HCluster.deregister_image(image)
       @@shared_base_object.deregister_image({:image_id => image})
     end
+
+    def HCluster.create_image_print_usage
+      puts ""
+      puts "HCluster.create_image"
+      puts "  options: (default)"
+      puts "  :label (nil) (see HCluster.my_images for a list of labels)"
+      puts "  :hbase_version (ENV['HBASE_VERSION'])"
+      puts "  :hadoop_version (ENV['HADOOP_VERSION'])"
+      puts "  :slave_instance_type (nil)"
+      puts "  :debug (false)"
+#FIXME: use ENV as above.
+      puts "  :user (ekoontz)"
+      puts "  :s3_bucket (ekoontz-amis)"
+      puts ""
+      puts "HCluster.my_images shows a list of label values."
+    end
     
     def HCluster.create_image(options = {})
+
+      if options.size == 0
+        return create_image_print_usage
+      end
+
+
       options = {
+        :label => nil,
         :hbase_version => "#{ENV['HBASE_VERSION']}",
         :hadoop_version => "#{ENV['HADOOP_VERSION']}",
         :slave_instance_type => nil,
