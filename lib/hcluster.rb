@@ -297,7 +297,9 @@ module HCluster
       #FIXME: figure out fixed width/truncation for pretty printing tables.
       puts "Label\t\t\t\tAMI"
       puts "=========================================="
-      describe_images({:owner_id => @@owner_id}).imagesSet.item.each {|image| puts "#{image.name}\t\t#{image.imageId}"}
+      describe_images({:owner_id => @@owner_id}).imagesSet.item.each {|image| 
+        puts "#{image.name}\t\t#{image.imageId}"
+      }
       nil
     end
     
@@ -335,7 +337,7 @@ module HCluster
         :slave_instance_type => nil,
         :user => "ekoontz",
         :s3_bucket => "ekoontz-amis",
-        :debug => false
+        :debug => false,
       }.merge(options)
       
       #cleanup any existing create_image instances.
@@ -354,7 +356,12 @@ module HCluster
       
       arch=@@slave_arch
 
-      image_label = "hbase-#{hbase_version}-#{arch}"
+      if options[:label]
+        image_label = options[:label]
+      else
+        image_label = "hbase-#{hbase_version}-#{arch}"
+      end
+
       existing_image = find_owned_image(image_label)
       
       if existing_image
