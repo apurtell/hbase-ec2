@@ -787,27 +787,7 @@ module HCluster
       options[:availability_zone] = @zone
       @zks = HCluster.do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks)})
     end
-    
-    def setup_zookeepers(zks)
-      #when zookeepers are ready, copy info over to them..
-      #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
-      HCluster::until_ssh_able(zks)
-      zks.each {|zk|
-        if (@debug_level > 0)
-          puts "zk dnsname: #{zk.dnsName}"
-        end
-        HCluster::scp_to(zk.dnsName,File.dirname(__FILE__) +"/../bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
-        #note that ZOOKEEPER_QUORUM is not yet set, but we don't 
-        # need it set to start the zookeeper(s) themselves, 
-        # so we can remove the ZOOKEEPER_QUORUM=.. from the following.
-        HCluster::ssh_to(zk.dnsName,
-                         "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-                         HCluster::summarize_output,HCluster::summarize_output,
-                         "[setup:zk:#{zk.dnsName}",
-                         "]\n")
-      }
-    end
-    
+        
     def zookeeper_quorum
       retval = ""
       @zks.each {|zk|
@@ -852,6 +832,27 @@ module HCluster
       @aux = do_launch(options,"aux",lambda{|instances|setup_aux(instances[0])})[0]
     end
     
+    def setup_zookeepers(zks)
+      #when zookeepers are ready, copy info over to them..
+      #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
+      HCluster::until_ssh_able(zks)
+      zks.each {|zk|
+        if (@debug_level > 0)
+          puts "zk dnsname: #{zk.dnsName}"
+        end
+        HCluster::scp_to(zk.dnsName,File.dirname(__FILE__) +"/../bin/hbase-ec2-init-zookeeper-remote.sh","/var/tmp")
+        #note that ZOOKEEPER_QUORUM is not yet set, but we don't 
+        # need it set to start the zookeeper(s) themselves, 
+        # so we can remove the ZOOKEEPER_QUORUM=.. from the following.
+        HCluster::ssh_to(zk.dnsName,
+                         "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
+#                         HCluster::summarize_output,HCluster::summarize_output,
+                         HCluster::echo_stdout,HCluster::echo_stderr,
+                         "[setup:zk:#{zk.dnsName}",
+                         "]\n")
+      }
+    end
+
     def setup_master(master)
       #cluster's dnsName is same as master's.
       @dnsName = master.dnsName
