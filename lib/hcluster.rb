@@ -881,7 +881,9 @@ module HCluster
     def setup_slaves(slaves) 
       init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
       #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
+      puts "setup_slaves: calling until_ssh_able()"
       HCluster::until_ssh_able(slaves)
+      puts "setup_slaves: done: slaves are sshable now."
       slaves.each {|slave|
         # <ssh key>
         HCluster::scp_to(slave.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
