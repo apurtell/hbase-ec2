@@ -367,6 +367,12 @@ module HCluster
         return create_image_print_usage
       end
 
+      if options[:label]
+        options = {
+          :hbase_version => label_to_hbase_version(options[:label])
+        }.merge(options)
+      end
+
       options = {
         :label => nil,
         :hbase_version => "#{ENV['HBASE_VERSION']}",
@@ -1160,8 +1166,14 @@ module HCluster
         "no minor version found for version '#{version_string}'."
       end
     end
-    
-    
+
+    def HCluster.label_to_hbase_version(label)
+      begin
+        /hbase-([0-9+]\.[0-9]+\.[0-9]+)/.match(label)[1]
+      rescue NoMethodError
+        "could not convert label: #{label} to an hbase version."
+      end
+    end
   end
 
 end
