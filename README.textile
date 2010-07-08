@@ -51,7 +51,6 @@ h2. Creating an image from hadoop-core and hbase source trees
 pre. 
 >> newimage = Himage.new :label => 'hbase-0.20.5-x86_64'
 Creating and registering image: hbase-0.20.5-x86_64
-Starting a AMI with ID: ami-f61dfd9f.
 ...
 
 h2. Starting a new Amazon HBase cluster
