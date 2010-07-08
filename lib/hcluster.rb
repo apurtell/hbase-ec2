@@ -7,7 +7,7 @@ require 'AWS'
 module HCluster
 
   class Himage < AWS::EC2::Base
-    attr_reader :label,:image_id,:image
+    attr_reader :label,:image_id,:image,:shared_base_object, :owner_id
 
     @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
 
@@ -18,6 +18,10 @@ module HCluster
                                                 })
     rescue
       puts "ooops..maybe you didn't define AMAZON_ACCESS_KEY_ID or AMAZON_SECRET_ACCESS_KEY? "
+    end
+
+    def list
+      HCluster.my_images
     end
 
     def Himage::list
@@ -34,13 +38,20 @@ module HCluster
     end
 
     def initialize(options = {})
+      @shared_base_object = @@shared_base_object
+      @owner_id = @@owner_id
       if options[:label]
         image_label = options[:label]
-        existing_image = Himage::find_owned_image(image_label)
-        if existing_image
-          @image = existing_image
+        owned_images = Himage::find_owned_image(options)
+        if owned_images
+          existing_image = owned_images.imagesSet.item[0]
         else
-          @image = HCluster.create_image(options).image_id
+          if existing_image
+            @image = existing_image
+          else
+            @image_id = HCluster.create_image(options)
+            @image = Himage::find_owned_image :image_id => @image_id
+          end
         end
         @label = @image.name
         @image_id = existing_image.imageId
@@ -49,21 +60,38 @@ module HCluster
       end
     end
 
-    def Himage.find_owned_image(image_label)
-      return describe_images({:owner_id => @@owner_id},image_label,false)
+    def Himage.find_owned_image(options)
+      options = {
+        :owner_id => @@owner_id
+        }.merge(options)
+      return Himage.describe_images(options,false)
     end
 
-    def Himage.describe_images(options,image_label = nil,search_all_visible_images = true)
+    def describe_images(options = {})
+      options = {
+        :owner_id => @@owner_id
+        }.merge(options)
+      return Himage.describe_images(options,false)
+    end
+
+    def Himage.describe_images(options = {},search_all_visible_images = true)
+      image_label = options[:label]
       if image_label
         options = {
           :owner_id => @@owner_id
         }.merge(options)
-        
+
         retval = @@shared_base_object.describe_images(options)
         #filter by image_label
-        retval2 = retval['imagesSet']['item'].detect{
-          |image| image['name'] == image_label
-        }
+        if image_label
+          retval2 = retval['imagesSet']['item'].detect{
+            |image| image['name'] == image_label
+          }
+        else
+          retval2 = retval['imagesSet']['item'].detect{
+            |image| image['image_id'] == options[:image_id]
+          }
+        end
         
         if (retval2 == nil and search_all_visible_images == true)
           options.delete(:owner_id)
@@ -78,6 +106,10 @@ module HCluster
       else
         @@shared_base_object.describe_images(options)
       end
+    end
+
+    def deregister
+      Himage.deregister(self.image.imageId)
     end
 
     def Himage.deregister(image)
