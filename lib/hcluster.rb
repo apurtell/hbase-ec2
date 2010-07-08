@@ -1180,11 +1180,15 @@ module HCluster
     end
     
     def HCluster.until_ssh_able(instances,debug_level = @@debug_level)
+      # do not return until every instance in the instances array is ssh-able.
+      debug_level = 1
       instances.each {|instance|
         connected = false
         until connected == true
           begin
+            puts "#{instance.dnsName} trying to ssh.."
             ssh_to(instance.dnsName,"true",HCluster::consume_output,HCluster::consume_output,nil,nil)
+            puts "#{instance.dnsName} is sshable."
             connected = true
           rescue Net::SSH::AuthenticationFailed
             if debug_level > 0
@@ -1193,12 +1197,17 @@ module HCluster
             sleep 5
           rescue Errno::ECONNREFUSED
             if debug_level > 0
-              puts "host: #{instance.dnsName} not ready yet - waiting.."
+              puts "host: #{instance.dnsName} not ready yet (connection refused) - waiting.."
+            end
+            sleep 5
+          rescue Errno::ECONNRESET
+            if debug_level > 0
+              puts "host: #{instance.dnsName} not ready yet (connection reset) - waiting.."
             end
             sleep 5
           rescue Errno::ETIMEDOUT
             if debug_level > 0
-              puts "host: #{instance.dnsName} not ready yet - waiting.."
+              puts "host: #{instance.dnsName} not ready yet (timed out) - waiting.."
             end
             sleep 5
           end
