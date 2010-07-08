@@ -6,14 +6,84 @@ require 'AWS'
 
 module HCluster
 
-  class HImage 
-    def HImage::list
+  class Himage < AWS::EC2::Base
+    attr_reader :label,:image_id,:image
+
+    @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
+
+    begin
+      @@shared_base_object = AWS::EC2::Base.new({
+                                                  :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
+                                                  :secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY']
+                                                })
+    rescue
+      puts "ooops..maybe you didn't define AMAZON_ACCESS_KEY_ID or AMAZON_SECRET_ACCESS_KEY? "
+    end
+
+    def Himage::list
       HCluster.my_images
     end
 
-    def HImage::create_image
-      #..
+    def initialize_himage_usage
+      puts ""
+      puts "Himage.new"
+      puts "  options: (default)"
+      puts "   :label  (nil) (see HImage.list for a list of labels)"
+      puts ""
+      puts "Himage.list shows a list of possible :label values."
     end
+
+    def initialize(options = {})
+      if options[:label]
+        image_label = options[:label]
+        existing_image = Himage::find_owned_image(image_label)
+        if existing_image
+          @image = existing_image
+        else
+          @image = HCluster.create_image(options).image_id
+        end
+        @label = @image.name
+        @image_id = existing_image.imageId
+      else
+        initialize_himage_usage
+      end
+    end
+
+    def Himage.find_owned_image(image_label)
+      return describe_images({:owner_id => @@owner_id},image_label,false)
+    end
+
+    def Himage.describe_images(options,image_label = nil,search_all_visible_images = true)
+      if image_label
+        options = {
+          :owner_id => @@owner_id
+        }.merge(options)
+        
+        retval = @@shared_base_object.describe_images(options)
+        #filter by image_label
+        retval2 = retval['imagesSet']['item'].detect{
+          |image| image['name'] == image_label
+        }
+        
+        if (retval2 == nil and search_all_visible_images == true)
+          options.delete(:owner_id)
+          puts "image '#{image_label}' not found in owner #{@@owner_id}'s images; looking in all images (may take a while..)"
+          retval = @@shared_base_object.describe_images(options)
+          #filter by image_label
+          retval2 = retval['imagesSet']['item'].detect{
+            |image| image['name'] == image_label
+          }
+        end
+        retval2
+      else
+        @@shared_base_object.describe_images(options)
+      end
+    end
+
+    def Himage.deregister(image)
+      @@shared_base_object.deregister_image({:image_id => image})
+    end
+
 
   end
   
@@ -408,11 +478,14 @@ module HCluster
       existing_image = find_owned_image(image_label)
       
       if existing_image
-        puts "Existing image: #{existing_image.imageId} already registered for image name #{image_label}. Call deregister_image('#{existing_image.imageId}'), if desired."
+        puts "Existing image: #{existing_image.imageId} already registered for image name #{image_label}. Call HImage::deregister_image('#{existing_image.imageId}'), if desired."
         
         return existing_image.imageId
       end
       
+      #FIXME: check s3 source tarballs permissions to make sure that the image creation will work before
+      # going to the trouble of creating an instance to create the image.
+
       puts "Creating and registering image: #{image_label}"
       puts "Starting a AMI with ID: #{@@default_base_ami_image}."
       
