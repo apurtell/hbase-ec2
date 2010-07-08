@@ -32,15 +32,32 @@ git clone git://github.com/ekoontz/hbase-ec2.git
 
 h1. Usage
 
+h2. Preliminaries
+
 pre. 
 $ irb
 >> $:.unshift("~/hbase-ec2/lib")
-["~/hbase-ec2/lib",  
-		    .. 
-]
+=> ["~/hbase-ec2/lib", ...]
 >> load 'hcluster.rb'
 => true
->> cluster = HCluster::HCluster.new
+>> include HCluster
+=> Object
+
+h2. Creating an image from hadoop-core and hbase source trees
+
+1. run @ant tar@ (0.20-era) or @mvn -DskipTests assembly:assembly@ (post 0.20)
+2. copy the tar.gz files for both hadoop-core and hbase to @~/s3@ (assuming @~/s3@ is synchronized, manually or automatically, to your S3 account).
+
+pre. 
+>> newimage = Himage.new :label => 'hbase-0.20.5-x86_64'
+Creating and registering image: hbase-0.20.5-x86_64
+Starting a AMI with ID: ami-f61dfd9f.
+...
+
+h2. Starting a new Amazon HBase cluster
+
+pre. 
+>> cluster = HCluster.new :label => 'hbase-0.20.5-x86_64'
 => #<HCluster::HCluster:0x1010e2098 @rs_key_name="root",
 ...
 >> cluster.launch
@@ -64,6 +81,10 @@ TestFDSIO.0.0.4
 10/06/22 19:44:32 INFO mapred.FileInputFormat:     Test exec time sec: 67.721
 10/06/22 19:44:32 INFO mapred.FileInputFormat: 
 => nil
+
+h2. Terminating a Cluster
+
+pre. 
 >> cluster.terminate
 terminating zookeeper: i-5144a73b
 terminating master: i-9344a7f9
