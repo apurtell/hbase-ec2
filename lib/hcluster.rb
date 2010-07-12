@@ -5,7 +5,7 @@ require 'net/scp'
 require 'AWS'
 require 'aws/s3'
 
-module HCluster
+module Hadoop
 
   class Himage < AWS::EC2::Base
     attr_reader :label,:image_id,:image,:shared_base_object, :owner_id
