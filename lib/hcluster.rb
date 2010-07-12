@@ -587,8 +587,8 @@ module Hadoop
       java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
       
       puts "running /mnt/create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
-      puts "  hbase major version: #{major_version(hbase_version)}"
-      puts "  hbase minor version: #{minor_version(hbase_version)}"
+
+      options[:debug] = true
 
       ssh_to(image_creator_hostname,
              "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
@@ -603,6 +603,7 @@ module Hadoop
       # FIXME: notify maintainers: 
       # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not 
       # mention :name param (only :image_location).
+      puts "registering image label: #{image_label} at manifest location: #{image_location}"
       registered_image = @@shared_base_object.register_image({
                                                                :name => image_label,
                                                                :image_location => image_location,
