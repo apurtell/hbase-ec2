@@ -1267,6 +1267,11 @@ module Hadoop
               puts "host: #{instance.dnsName} not ready yet (timed out) - waiting.."
             end
             sleep 5
+          rescue OpenSSL::SSL::SSLError
+            if debug_level > 0
+              puts "host: #{instance.dnsName} not ready yet (ssl error) - waiting.."
+            end
+            sleep 5
           end
         end
       }
