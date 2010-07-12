@@ -3,6 +3,7 @@ require 'monitor'
 require 'net/ssh'
 require 'net/scp'
 require 'AWS'
+require 'aws/s3'
 
 module HCluster
 
@@ -14,10 +15,19 @@ module HCluster
     begin
       @@shared_base_object = AWS::EC2::Base.new({
                                                   :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
-                                                  :secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY']
+                                                  :secret_access_key => ENV['AMAZON_SECRET_ACCESS_KEY']
                                                 })
     rescue
       puts "ooops..maybe you didn't define AMAZON_ACCESS_KEY_ID or AMAZON_SECRET_ACCESS_KEY? "
+    end
+
+    @@s3 = AWS::S3::S3Object
+
+    if !(@@s3.connected?)
+      @@s3.establish_connection!(
+                                 :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
+                                 :secret_access_key => ENV['AMAZON_SECRET_ACCESS_KEY']
+                                 )
     end
 
     def list
@@ -40,22 +50,26 @@ module HCluster
     def initialize(options = {})
       @shared_base_object = @@shared_base_object
       @owner_id = @@owner_id
+      options = {
+        :owner_id => @@owner_id
+      }.merge(options)
+
       if options[:label]
         image_label = options[:label]
-        owned_images = Himage::find_owned_image(options)
-        if owned_images
-          existing_image = owned_images.imagesSet.item[0]
+        owned_image = Himage::find_owned_image(options)
+        if owned_image
+          @image = owned_image
+          owned_image
         else
-          if existing_image
-            @image = existing_image
-          else
-            @image_id = HCluster.create_image(options)
-            @image = Himage::find_owned_image :image_id => @image_id
-          end
+          retval = HCluster.create_image(options)
+          puts "image id (retval of HCluster.create_image(#{options.to_yaml})): #{retval}"
+          @image = Himage::find_owned_image(options)
         end
         @label = @image.name
-        @image_id = existing_image.imageId
+        @image_id = @image.imageId
+        @image
       else
+        #not enough options: show usage and exit.
         initialize_himage_usage
       end
     end
@@ -593,6 +607,7 @@ module HCluster
       else
         puts "not shutting down image creator: #{image_creator.dnsName}"
       end
+      puts "referring to registered image: #{registered_image.to_yaml}"
       registered_image.imageId
     end
     
