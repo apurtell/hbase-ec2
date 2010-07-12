@@ -34,10 +34,14 @@ module HCluster
       HCluster.my_images
     end
 
+    def Himage::s3
+      @@s3
+    end
 
     def Himage::upload_tar(label = "test", bucket = "ekoontz-tarballs",file="/Users/ekoontz/s3/sample.tar.gz")
-      puts "storing '#{file}' in s3 bucket '#{bucket}'.."
-      @@s3.store file, open(file), bucket
+      filename = File.basename(file)
+      puts "storing '#{filename}' in s3 bucket '#{bucket}'.."
+      @@s3.store filename, open(file), bucket,:access => :public_read
       puts "done."
     end
 
