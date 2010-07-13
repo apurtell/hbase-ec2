@@ -12,6 +12,10 @@ module Hadoop
 
     @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
 
+    def owner_id
+      @@owner_id
+    end
+
     begin
       @@shared_base_object = AWS::EC2::Base.new({
                                                   :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
@@ -166,6 +170,11 @@ module Hadoop
     @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
     @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
     
+    def HCluster::owner_id
+      @@owner_id
+    end
+
+
     #architectures: either "x86_64" or "i386".
     @@zk_arch = "x86_64"
     @@master_arch = "x86_64"
@@ -189,13 +198,14 @@ module Hadoop
     
     attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_label,
     :master_image_label, :slave_image_label, :aux_image_label, :owner_id,
-    :image_creator,:options,:hbase_version
+    :image_creator,:options,:hbase_version,:aws_connection
     
     def initialize_print_usage
       puts ""
       puts "HCluster.new"
       puts "  options: (default)"
       puts "   :label (nil) (see HCluster.my_images for a list of labels)"
+      puts "   :ami (nil) (overrides :label - use only one of {:label,:ami})"
       puts "   :hbase_version (ENV['HBASE_VERSION'])"
       puts "   :num_regionservers  (3)"
       puts "   :num_zookeepers  (1)"
@@ -212,7 +222,7 @@ module Hadoop
 
     def initialize( options = {} )
 
-      if options.size == 0
+      if options.size == 0 || (options.ami == nil && options.label == nil)
         #not enough info to create cluster: show documentation.
         initialize_print_usage
         return nil
@@ -472,13 +482,45 @@ module Hadoop
     end
 
     def HCluster.my_images
+      HCluster.search_images owner_id => @@owner_id
+      #Discard returned array - all we care about is the 
+      # output that HCluster::search_images already printed.
+      return nil
+    end
+
+    def HCluster.search_images_usage
+      puts ""
+      puts "HCluster.search_image(options)"
+      puts "  options: (default value) (example)"
+      puts "  :owner_id (nil)"
+      puts "  :image_id (nil) ('ami-dc866db5')"
+    end
+
+    def HCluster.search_images(options = nil)
       #FIXME: figure out fixed width/truncation for pretty printing tables.
-      puts "Label\t\t\t\tAMI"
-      puts "=========================================="
-      describe_images({:owner_id => @@owner_id}).imagesSet.item.each {|image| 
-        puts "#{image.name}\t\t#{image.imageId}"
+      if options == nil || options.size == 0
+        search_images_usage
+        return nil
+      end
+
+      #if no image_id, set owner_id to HCluster owner.
+      if options[:image_id]
+        search_all_visible_images = true
+      else
+        search_all_visible_images = false
+        options = {
+          :owner_id => @@owner_id
+        }.merge(options)
+      end
+
+      puts "Label\t\t\t\tAMI\t\t\tOwner"
+      puts "================================================================"
+      imgs = HCluster.describe_images(options).imagesSet.item
+      imgs.each {|image| 
+        puts "#{image.name}\t\t#{image.imageId}\t\t#{image.imageOwnerId}"
       }
-      nil
+      puts ""
+      imgs
     end
     
     def HCluster.deregister_image(image)
@@ -802,7 +844,8 @@ module Hadoop
     def HCluster.watch(name,instances,begin_output = "[launch:#{name}",end_output = "]\n",debug_level = @@debug_level)
       # note: this aws_connection is separate for this watch() function call:
       # this will hopefully allow us to run watch() in a separate thread if desired.
-      aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
+      #FIXME: cache this AWS::EC2::Base instance.
+      @aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
       
       print begin_output
       STDOUT.flush
@@ -821,11 +864,13 @@ module Hadoop
           # get status of instance instance.instanceId.
           begin
             begin
-              instance_info = aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
+              instance_info = @aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
               status = instance_info.instanceState.name
             rescue OpenSSL::SSL::SSLError
               puts "aws_connection.describe_instance() encountered an SSL error - retrying."
               status = "waiting"
+#rescue User::Hit::Control::C
+# get info about instance so it's not ophaned/unterminatable.
             end
 
             if (!(status == "running"))
