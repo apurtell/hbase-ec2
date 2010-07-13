@@ -6,13 +6,14 @@ h1. Contents
 
 hbase-ec2 is currently supplied as a set of ruby files that currently is :
 
-* lib/hcluster.rb : the AWS::EC2::Base::HCluster class definition
+* lib/hcluster.rb : the Hadoop::HCluster and Hadoop::HImage class definitions
 * lib/TestDFSIO.rb : a subclass of HCluster, intended as an example for testing Hadoop filesystem functionality.
 
 h1. Prerequisites
 
 * @export RUBYOPT="rubygems"@
 * "AWS::EC2":http://amazon-ec2.rubyforge.org. You can install this with @gem install amazon-ec2@.
+* "AWS::S3":http://amazon.rubyforge.org. You can install this with @gem install aws-s3@.
 * "Net::SSH":http://net-ssh.rubyforge.org. You can install this with @gem install net-ssh@.
 * "Net::SCP":http://net-scp.rubyforge.org. You can install this with @gem install net-scp@.
 * OpenSSL support for Ruby. This might also be installed with your ruby, but on Ubuntu, I had to do: @apt-get install libruby-extras@.
@@ -40,12 +41,26 @@ $ irb
 => ["~/hbase-ec2/lib", ...]
 >> load 'hcluster.rb'
 => true
->> include HCluster
+>> include Hadoop
 => Object
 
 h2. Creating an image from hadoop-core and hbase source trees
 
-1. run @ant tar@ (0.20-era) or @mvn -DskipTests assembly:assembly@ (post 0.20)
+1. run @ant tar@ (0.20-era):
+
+pre. 
+ekoontz@localhost:~/hbase$ git branch -a
+* tags/0.20.5
+..
+ekoontz@localhost:~/hbase$ ant clean tar
+..
+tar:
+      [tar] Building tar: /home/ekoontz/hbase/build/hbase-0.20.5.tar.gz
+BUILD SUCCESSFUL
+Total time: 48 seconds
+ekoontz@localhost:~/hbase$ 
+
+ or @mvn -DskipTests assembly:assembly@ (post 0.20)
 2. copy the tar.gz files for both hadoop-core and hbase to @~/s3@ (assuming @~/s3@ is synchronized, manually or automatically, to your S3 account).
 
 pre. 
@@ -57,7 +72,7 @@ h2. Starting a new Amazon HBase cluster
 
 pre. 
 >> cluster = HCluster.new :label => 'hbase-0.20.5-x86_64'
-=> #<HCluster::HCluster:0x1010e2098 @rs_key_name="root",
+=> #<Hadoop::HCluster:0x1010e2098 @rs_key_name="root",
 ...
 >> cluster.launch
 [launch:zk.........................]
