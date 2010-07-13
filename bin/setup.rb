@@ -21,6 +21,7 @@ if ENV['AMAZON_ACCESS_KEY_ID'] && ENV['AMAZON_SECRET_ACCESS_KEY']
   @elb = AWS::ELB::Base.new(opts)
   @as = AWS::Autoscaling::Base.new(opts)
   @rds = AWS::RDS::Base.new(opts)
+  @hcluster = Hadoop::HCluster
 end
 
 puts "EC2 Server: #{opts[:server]}"
