@@ -588,8 +588,6 @@ module Hadoop
       
       puts "running /mnt/create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
 
-      options[:debug] = true
-
       ssh_to(image_creator_hostname,
              "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
              HCluster.image_output_handler(options[:debug]),
@@ -805,8 +803,14 @@ module Hadoop
           instance = instances.instancesSet.item[i]
           # get status of instance instance.instanceId.
           begin
-            instance_info = aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
-            status = instance_info.instanceState.name
+            begin
+              instance_info = aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
+              status = instance_info.instanceState.name
+            rescue OpenSSL::SSL::SSLError
+              puts "aws_connection.describe_instance() encountered an SSL error - retrying."
+              status = "waiting"
+            end
+
             if (!(status == "running"))
               wait = true
             else
