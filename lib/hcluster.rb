@@ -1212,13 +1212,15 @@ module Hadoop
     end
     
     def to_s
-      retval = "HCluster (state='#{@state}'): #{@num_regionservers} regionserver#{((@numregionservers == 1) && '') || 's'}; #{@num_zookeepers} zookeeper#{((@num_zookeepers == 1) && '') || 's'}; hbase_version:#{options[:hbase_version]};"
-      if (@aux) 
-        retval = retval + "; 1 aux"
+      if (@state)
+        retval = "HCluster (state='#{@state}'): #{@num_regionservers} regionserver#{((@numregionservers == 1) && '') || 's'}; #{@num_zookeepers} zookeeper#{((@num_zookeepers == 1) && '') || 's'}; hbase_version:#{options[:hbase_version]};"
+        if (@aux) 
+          retval = retval + "; 1 aux"
+        end
+        retval = retval + "."
       end
-      retval = retval + "."
     end
-    
+
     private
     def HCluster.status_do(instances)
       retval = []
