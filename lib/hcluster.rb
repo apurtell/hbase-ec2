@@ -876,12 +876,8 @@ module Hadoop
     def HCluster.watch(name,instances,begin_output = "[launch:#{name}",end_output = "]\n",debug_level = @@debug_level)
       # note: this aws_connection is separate for this watch() function call:
       # this will hopefully allow us to run watch() in a separate thread if desired.
-<<<<<<< HEAD
       #FIXME: cache this AWS::EC2::Base instance.
-      @aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
-=======
-      aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AWS_ACCESS_KEY_ID'],:secret_access_key=>ENV['AWS_SECRET_ACCESS_KEY'])
->>>>>>> 26d4f5
+      @aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AWS_ACCESS_KEY_ID'],:secret_access_key=>ENV['AWS_SECRET_ACCESS_KEY'])
       
       print begin_output
       STDOUT.flush
