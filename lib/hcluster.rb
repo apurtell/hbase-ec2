@@ -683,6 +683,11 @@ module Hadoop
     # if threaded, we would set to "pending" and then 
       # use join to determine when state should transition to "running".
       #    @launchTime = master.launchTime
+
+      @state = "final initialization,,"
+      #for portability, HCluster::run_test looks for /usr/local/hadoop/hadoop-test.jar.
+      ssh("ln -s /usr/local/hadoop/hadoop-test-*.jar /usr/local/hadoop/hadoop-test.jar")
+
       @state = "running"
     end
     
