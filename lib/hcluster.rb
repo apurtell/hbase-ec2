@@ -196,6 +196,16 @@ module Hadoop
       puts "HCluster.new"
       puts "  options: (default)"
       puts "   :label (nil) (see HCluster.my_images for a list of labels)"
+      puts "   :hbase_version (ENV['HBASE_VERSION'])"
+      puts "   :num_regionservers  (3)"
+      puts "   :num_zookeepers  (1)"
+      puts "   :launch_aux  (false)"
+      puts "   :zk_arch  (x86_64)"
+      puts "   :master_arch  (x86_64)"
+      puts "   :slave_arch  (x86_64)"
+      puts "   :debug_level  (@@debug_level)"
+      puts "   :validate_images  (true)"
+      puts "   :security_group_prefix (hcluster)"
       puts ""
       puts "HCluster.my_images shows a list of possible :label values."
     end
@@ -203,7 +213,9 @@ module Hadoop
     def initialize( options = {} )
 
       if options.size == 0
-        return initialize_print_usage
+        #not enough info to create cluster: show documentation.
+        initialize_print_usage
+        return nil
       end
 
       options = {
@@ -1214,7 +1226,7 @@ module Hadoop
     def to_s
       if (@state)
         retval = "HCluster (state='#{@state}'): #{@num_regionservers} regionserver#{((@numregionservers == 1) && '') || 's'}; #{@num_zookeepers} zookeeper#{((@num_zookeepers == 1) && '') || 's'}; hbase_version:#{options[:hbase_version]};"
-        if (@aux) 
+        if (@aux)
           retval = retval + "; 1 aux"
         end
         retval = retval + "."
