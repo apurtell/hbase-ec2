@@ -203,9 +203,9 @@ module Hadoop
     def initialize_print_usage
       puts ""
       puts "HCluster.new"
-      puts "  options: (default)"
+      puts "  options: (default) (example)"
       puts "   :label (nil) (see HCluster.my_images for a list of labels)"
-      puts "   :ami (nil) (overrides :label - use only one of {:label,:ami})"
+      puts "   :image_id (nil) (overrides :label - use only one of {:label,:image_id}) ('ami-dc866db5')"
       puts "   :hbase_version (ENV['HBASE_VERSION'])"
       puts "   :num_regionservers  (3)"
       puts "   :num_zookeepers  (1)"
@@ -222,7 +222,7 @@ module Hadoop
 
     def initialize( options = {} )
 
-      if options.size == 0 || (options.ami == nil && options.label == nil)
+      if options.size == 0 || (options.image_id == nil && options.label == nil)
         #not enough info to create cluster: show documentation.
         initialize_print_usage
         return nil
@@ -241,6 +241,21 @@ module Hadoop
         :validate_images => true,
         :security_group_prefix => "hcluster",
       }.merge(options)
+
+      if options[:image_id]
+        #overrides options[:label] if present.
+        puts "searching for image: '#{options.image_id}'.."
+        search_results = HCluster.search_images :image_id => options.image_id, :output_fn => nil
+        if search_results && search_results.size > 0
+          if search_results[0].name
+            options[:label] = search_results[0].name
+          else
+            raise "Image name not found for AMI struct: #{search_results.to_yaml}."
+          end
+        else
+          raise "AMI : '#{options[:image_id]}' not found."
+        end
+      end
       
       # using same security group for all instances does not work now, so forcing to be separate.
       options[:separate_security_groups] = true
@@ -494,6 +509,7 @@ module Hadoop
       puts "  options: (default value) (example)"
       puts "  :owner_id (nil)"
       puts "  :image_id (nil) ('ami-dc866db5')"
+      puts "  :output_fn (puts)"
     end
 
     def HCluster.search_images(options = nil)
@@ -509,17 +525,25 @@ module Hadoop
       else
         search_all_visible_images = false
         options = {
-          :owner_id => @@owner_id
+          :owner_id => @@owner_id,
         }.merge(options)
       end
 
-      puts "Label\t\t\t\tAMI\t\t\tOwner"
-      puts "================================================================"
+      options = {
+        :output_fn => lambda{|line|
+          puts line
+        }
+      }.merge(options)
+
       imgs = HCluster.describe_images(options).imagesSet.item
-      imgs.each {|image| 
-        puts "#{image.name}\t\t#{image.imageId}\t\t#{image.imageOwnerId}"
-      }
-      puts ""
+      if options[:output_fn]
+        options.output_fn.call "label\t\t\t\timage_id\t\t\towner_id"
+        options.output_fn.call "========================================================================="
+        imgs.each {|image| 
+          options.output_fn.call "#{image.name}\t\t#{image.imageId}\t\t#{image.imageOwnerId}"
+        }
+        options.output_fn.call ""
+      end
       imgs
     end
     
