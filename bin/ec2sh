@@ -24,6 +24,12 @@
 hbase_ec2_lib   = File.dirname(__FILE__) + '/../lib/hcluster'
 setup = File.dirname(__FILE__) + '/setup'
 irb_name = RUBY_PLATFORM =~ /mswin32/ ? 'irb.bat' : 'irb'
+if ( ENV['AWS_ACCESS_KEY_ID'] )
+  ENV['AMAZON_ACCESS_KEY_ID'] = ENV['AWS_ACCESS_KEY_ID']
+end
+if ( ENV['AWS_SECRET_ACCESS_KEY'] )
+  ENV['AMAZON_SECRET_ACCESS_KEY'] = ENV['AWS_SECRET_ACCESS_KEY']
+end
 
 if ( ENV['AMAZON_ACCESS_KEY_ID'] && ENV['AMAZON_SECRET_ACCESS_KEY'] )
 
@@ -35,28 +41,28 @@ if ( ENV['AMAZON_ACCESS_KEY_ID'] && ENV['AMAZON_SECRET_ACCESS_KEY'] )
   this to be a great tool to help you debug issues and practice running 
   commands against the live EC2 servers prior to putting them in your code.
 
-  The EC2 connection is wired to the class instance '@ec2'.  Make method calls
-  on this to execute commands on EC2.  Adding a #to_s
-  at the end of any command should give you a full String representation of the
-  response.
+  The hcluster module is aliased as '@hcluster'.  To create a new cluster,
+  try:
 
-    Examples to try:
+  >> cluster = @hcluster.new :label => 'AMI name' 
 
-      returns : all ec2 public methods
-      >> @ec2.methods.sort
-
-      returns : a string representation of ALL images
-      >> @ec2.describe_images.to_s
-
-      returns : an Array of AWS::Response objects, each an EC2 image and its data
-      >> @ec2.describe_images.imagesSet.item
-      >> @ec2.describe_images.imagesSet.item[0] (a hash representing a single item in that array)
-      >> @ec2.describe_images.imagesSet.item[0].to_s (a String representation of that item)
+  Available options: (default)
+      :label (nil) (see HCluster.my_images for a list of labels)
+      :hbase_version (ENV['HBASE_VERSION'])
+      :num_regionservers  (3)
+      :num_zookeepers  (1)
+      :launch_aux  (false)
+      :zk_arch  (x86_64)
+      :master_arch  (x86_64)
+      :slave_arch  (x86_64)
+      :debug_level  (@@debug_level)
+      :validate_images  (true)
+      :security_group_prefix (hcluster)
 
   MESSAGE
 
   puts welcome_message
   exec "#{irb_name} -rubygems -r #{hbase_ec2_lib} -r #{setup} --simple-prompt"
 else
-  puts "You must define AMAZON_ACCESS_KEY_ID and AMAZON_SECRET_ACCESS_KEY as shell environment variables before running #{$0}!"
+  puts "You must define AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY as shell environment variables before running #{$0}!"
 end

@@ -14,19 +14,19 @@ module Hadoop
 
     begin
       @@shared_base_object = AWS::EC2::Base.new({
-                                                  :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
-                                                  :secret_access_key => ENV['AMAZON_SECRET_ACCESS_KEY']
+                                                  :access_key_id => ENV['AWS_ACCESS_KEY_ID'],
+                                                  :secret_access_key => ENV['AWS_SECRET_ACCESS_KEY']
                                                 })
     rescue
-      puts "ooops..maybe you didn't define AMAZON_ACCESS_KEY_ID or AMAZON_SECRET_ACCESS_KEY? "
+      puts "ooops..maybe you didn't define AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY? "
     end
 
     @@s3 = AWS::S3::S3Object
 
     if !(@@s3.connected?)
       @@s3.establish_connection!(
-                                 :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
-                                 :secret_access_key => ENV['AMAZON_SECRET_ACCESS_KEY']
+                                 :access_key_id => ENV['AWS_ACCESS_KEY_ID'],
+                                 :secret_access_key => ENV['AWS_SECRET_ACCESS_KEY']
                                  )
     end
 
@@ -145,7 +145,8 @@ module Hadoop
   end
   
   #FIXME: move to yaml config file.
-  EC2_ROOT_SSH_KEY = "#{ENV['HOME']}/.ec2/root.pem"
+  EC2_ROOT_SSH_KEY = ENV['EC2_ROOT_SSH_KEY'] ? "#{ENV['EC2_ROOT_SSH_KEY']}" : "#{ENV['HOME']}/.ec2/root.pem"
+  EC2_CERT = ENV['EC2_CERT'] ? "#{ENV['EC2_CERT']}" : "#{ENV['HOME']}/.ec2/cert.pem"
     
   class HClusterStateError < StandardError
   end
@@ -180,11 +181,11 @@ module Hadoop
     # so hopefully, no race conditions are possible.
     begin
       @@shared_base_object = AWS::EC2::Base.new({
-                                                  :access_key_id => ENV['AMAZON_ACCESS_KEY_ID'],
-                                                  :secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY']
+                                                  :access_key_id => ENV['AWS_ACCESS_KEY_ID'],
+                                                  :secret_access_key=>ENV['AWS_SECRET_ACCESS_KEY']
                                                 })
     rescue
-      puts "ooops..maybe you didn't define AMAZON_ACCESS_KEY_ID or AMAZON_SECRET_ACCESS_KEY? "
+      puts "ooops..maybe you didn't define AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY? "
   end
     
     attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_label,
@@ -231,6 +232,11 @@ module Hadoop
         :validate_images => true,
         :security_group_prefix => "hcluster",
       }.merge(options)
+
+      @ami_owner_id = @@owner_id
+      if options[:owner_id]
+        @ami_owner_id = options[:owner_id]
+      end
       
       # using same security group for all instances does not work now, so forcing to be separate.
       options[:separate_security_groups] = true
@@ -252,7 +258,7 @@ module Hadoop
           # User has no HBASE_VERSION defined, so check my images and use the first one.
           # If possible, would like to apply further filtering to find suitable images amongst 
           # them rather than just picking first.
-          desc_images = HCluster.describe_images({:owner_id => @@owner_id})
+          desc_images = HCluster.describe_images({:owner_id => @ami_owner_id})
           if desc_images
             desc_images = desc_images.imagesSet.item
             if desc_images[0] && desc_images[0].name
@@ -274,17 +280,17 @@ module Hadoop
             
       # check env variables.
       raise HClusterStartError, 
-      "AMAZON_ACCESS_KEY_ID is not defined in your environment." unless ENV['AMAZON_ACCESS_KEY_ID']
+      "AWS_ACCESS_KEY_ID is not defined in your environment." unless ENV['AWS_ACCESS_KEY_ID']
       
       raise HClusterStartError, 
-      "AMAZON_SECRET_ACCESS_KEY is not defined in your environment." unless ENV['AMAZON_SECRET_ACCESS_KEY']
+      "AWS_SECRET_ACCESS_KEY is not defined in your environment." unless ENV['AWS_SECRET_ACCESS_KEY']
       
       raise HClusterStartError,
       "AWS_ACCOUNT_ID is not defined in your environment." unless ENV['AWS_ACCOUNT_ID']
       # remove dashes so that describe_images() can find images owned by this owner.
       @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
       
-      super(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
+      super(:access_key_id=>ENV['AWS_ACCESS_KEY_ID'],:secret_access_key=>ENV['AWS_SECRET_ACCESS_KEY'])
       
       #architectures: either "x86_64" or "i386".
       @zk_arch = "x86_64"
@@ -581,8 +587,8 @@ module Hadoop
       scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
       
       # Copy private key and certificate (for bundling image)
-      scp_to(image_creator_hostname,"#{ENV['HOME']}/.ec2/root.pem","/mnt")
-      scp_to(image_creator_hostname,"#{ENV['HOME']}/.ec2/cert.pem","/mnt")
+      scp_to(image_creator_hostname, EC2_ROOT_SSH_KEY, "/mnt")
+      scp_to(image_creator_hostname, EC2_CERT, "/mnt")
 
       if (major_version(hbase_version) == 0) and (minor_version(hbase_version) < 21)
         #Older format.
@@ -601,7 +607,7 @@ module Hadoop
       puts "running /mnt/create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
 
       ssh_to(image_creator_hostname,
-             "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AMAZON_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AMAZON_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
+             "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
              HCluster.image_output_handler(options[:debug]),
              HCluster.image_output_handler(options[:debug]))
       
@@ -797,7 +803,7 @@ module Hadoop
     def HCluster.watch(name,instances,begin_output = "[launch:#{name}",end_output = "]\n",debug_level = @@debug_level)
       # note: this aws_connection is separate for this watch() function call:
       # this will hopefully allow us to run watch() in a separate thread if desired.
-      aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AMAZON_ACCESS_KEY_ID'],:secret_access_key=>ENV['AMAZON_SECRET_ACCESS_KEY'])
+      aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AWS_ACCESS_KEY_ID'],:secret_access_key=>ENV['AWS_SECRET_ACCESS_KEY'])
       
       print begin_output
       STDOUT.flush
@@ -1059,8 +1065,9 @@ module Hadoop
         }
         
         if (retval2 == nil and search_all_visible_images == true)
+          old_owner = options[:owner_id]
           options.delete(:owner_id)
-          puts "image '#{image_label}' not found in owner #{@@owner_id}'s images; looking in all images (may take a while..)"
+          puts "image '#{image_label}' not found in owner #{old_owner}'s images; looking in all images (may take a while..)"
           retval = @@shared_base_object.describe_images(options)
           #filter by image_label
           retval2 = retval['imagesSet']['item'].detect{
@@ -1090,12 +1097,12 @@ module Hadoop
     end
     
     def get_image(image_label)
-      matching_image = HCluster.describe_images({:owner_id => @@owner_id},image_label)
+      matching_image = HCluster.describe_images({:owner_id => @ami_owner_id},image_label)
       if matching_image
         matching_image
       else
         raise HClusterStartError,
-        "describe_images({:owner_id => '#{@@owner_id}'},'#{image_label}'): couldn't find #{image_label}, even in all of Amazon's viewable images."
+        "describe_images({:owner_id => '#{@ami_owner_id}'},'#{image_label}'): couldn't find #{image_label}, even in all of Amazon's viewable images."
       end
     end
     
@@ -1150,7 +1157,7 @@ module Hadoop
           command = gets
         end
         Net::SSH.start(host,'root',
-                       :keys => ["~/.ec2/root.pem"],
+                       :keys => [EC2_ROOT_SSH_KEY],
                        :paranoid => false
                        ) do |ssh|
           stdout = ""
@@ -1207,7 +1214,7 @@ module Hadoop
       # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
       # and their servers' private keys will vary.
       Net::SCP.start(host,'root',
-                     :keys => ["~/.ec2/root.pem"],
+                     :keys => [EC2_ROOT_SSH_KEY],
                      :paranoid => false
                      ) do |scp|
         scp.upload! local_path,remote_path
