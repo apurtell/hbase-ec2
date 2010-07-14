@@ -2,6 +2,10 @@
 require 'monitor'
 require 'net/ssh'
 require 'net/scp'
+#For development purposes..
+#..uncomment this: ..
+#gem 'amazon-ec2', '>= 0.9.15'
+#..and this:.
 require 'AWS'
 require 'aws/s3'
 
