@@ -33,7 +33,8 @@ end
 
 if ( ENV['AMAZON_ACCESS_KEY_ID'] && ENV['AMAZON_SECRET_ACCESS_KEY'] )
 
-  welcome_message = <<-MESSAGE
+  if ( ARGV.length == 0 )
+    welcome_message = <<-MESSAGE
 
   'ec2sh' usage :
   This is an interactive 'irb' command shell that allows you to use all
@@ -61,8 +62,9 @@ if ( ENV['AMAZON_ACCESS_KEY_ID'] && ENV['AMAZON_SECRET_ACCESS_KEY'] )
 
   MESSAGE
 
-  puts welcome_message
-  exec "#{irb_name} -rubygems -r #{hbase_ec2_lib} -r #{setup} --simple-prompt"
+    puts welcome_message
+  end
+  exec "#{irb_name} -rubygems -r #{hbase_ec2_lib} -r #{setup} --simple-prompt #{ARGV}"
 else
   puts "You must define AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY as shell environment variables before running #{$0}!"
 end
