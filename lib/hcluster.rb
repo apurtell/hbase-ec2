@@ -2,6 +2,9 @@
 require 'monitor'
 require 'net/ssh'
 require 'net/scp'
+#For development purposes..
+#..uncomment this: ..
+#gem 'amazon-ec2', '>= 0.9.15'
 require 'AWS'
 require 'aws/s3'
 
@@ -11,6 +14,10 @@ module Hadoop
     attr_reader :label,:image_id,:image,:shared_base_object, :owner_id
 
     @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
+
+    def owner_id
+      @@owner_id
+    end
 
     begin
       @@shared_base_object = AWS::EC2::Base.new({
@@ -167,6 +174,11 @@ module Hadoop
     @@default_base_ami_image = "ami-f61dfd9f"   # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
     @@owner_id = ENV['AWS_ACCOUNT_ID'].gsub(/-/,'')
     
+    def HCluster::owner_id
+      @@owner_id
+    end
+
+
     #architectures: either "x86_64" or "i386".
     @@zk_arch = "x86_64"
     @@master_arch = "x86_64"
@@ -190,13 +202,14 @@ module Hadoop
     
     attr_reader :zks, :master, :slaves, :aux, :zone, :zk_image_label,
     :master_image_label, :slave_image_label, :aux_image_label, :owner_id,
-    :image_creator,:options,:hbase_version
+    :image_creator,:options,:hbase_version,:aws_connection
     
     def initialize_print_usage
       puts ""
       puts "HCluster.new"
-      puts "  options: (default)"
+      puts "  options: (default) (example)"
       puts "   :label (nil) (see HCluster.my_images for a list of labels)"
+      puts "   :image_id (nil) (overrides :label - use only one of {:label,:image_id}) ('ami-dc866db5')"
       puts "   :hbase_version (ENV['HBASE_VERSION'])"
       puts "   :num_regionservers  (3)"
       puts "   :num_zookeepers  (1)"
@@ -207,13 +220,14 @@ module Hadoop
       puts "   :debug_level  (@@debug_level)"
       puts "   :validate_images  (true)"
       puts "   :security_group_prefix (hcluster)"
+      puts "   :availability_zone (us-east-1a)"
       puts ""
       puts "HCluster.my_images shows a list of possible :label values."
     end
 
     def initialize( options = {} )
 
-      if options.size == 0
+      if options.size == 0 || (options.image_id == nil && options.label == nil)
         #not enough info to create cluster: show documentation.
         initialize_print_usage
         return nil
@@ -231,11 +245,29 @@ module Hadoop
         :debug_level => @@debug_level,
         :validate_images => true,
         :security_group_prefix => "hcluster",
+        :availability_zone => "us-east-1a",
       }.merge(options)
 
+      
       @ami_owner_id = @@owner_id
       if options[:owner_id]
         @ami_owner_id = options[:owner_id]
+      end
+
+      if options[:image_id]
+        #overrides options[:label] if present.
+        puts "searching for image: '#{options.image_id}'.."
+        search_results = HCluster.search_images :image_id => options.image_id, :output_fn => nil
+        if search_results && search_results.size > 0
+          if search_results[0].name
+            puts "found image with label: #{options[:label]}."
+            options[:label] = search_results[0].name
+          else
+            raise "Image name not found for AMI struct: #{search_results.to_yaml}."
+          end
+        else
+          raise "AMI : '#{options[:image_id]}' not found."
+        end
       end
       
       # using same security group for all instances does not work now, so forcing to be separate.
@@ -316,7 +348,7 @@ module Hadoop
       @aux = nil
       @ssh_input = []
       
-      @zone = "us-east-1a"
+      @zone = options[:availability_zone]
       
       #images
       @zk_image_label = options[:zk_image_label]
@@ -478,13 +510,54 @@ module Hadoop
     end
 
     def HCluster.my_images
+      HCluster.search_images owner_id => @@owner_id
+      #Discard returned array - all we care about is the 
+      # output that HCluster::search_images already printed.
+      return nil
+    end
+
+    def HCluster.search_images_usage
+      puts ""
+      puts "HCluster.search_image(options)"
+      puts "  options: (default value) (example)"
+      puts "  :owner_id (nil)"
+      puts "  :image_id (nil) ('ami-dc866db5')"
+      puts "  :output_fn (puts)"
+    end
+
+    def HCluster.search_images(options = nil)
       #FIXME: figure out fixed width/truncation for pretty printing tables.
-      puts "Label\t\t\t\tAMI"
-      puts "=========================================="
-      describe_images({:owner_id => @@owner_id}).imagesSet.item.each {|image| 
-        puts "#{image.name}\t\t#{image.imageId}"
-      }
-      nil
+      if options == nil || options.size == 0
+        search_images_usage
+        return nil
+      end
+
+      #if no image_id, set owner_id to HCluster owner.
+      if options[:image_id]
+        search_all_visible_images = true
+      else
+        search_all_visible_images = false
+        options = {
+          :owner_id => @@owner_id,
+        }.merge(options)
+      end
+
+      options = {
+        :output_fn => lambda{|line|
+          puts line
+        }
+      }.merge(options)
+
+      imgs = HCluster.describe_images(options).imagesSet.item
+      if options[:output_fn]
+        options.output_fn.call "label\t\t\t\timage_id\t\t\towner_id"
+        options.output_fn.call "========================================================================="
+        imgs.each {|image| 
+          options.output_fn.call "#{image.name}\t\t#{image.imageId}\t\t#{image.imageOwnerId}"
+        }
+        options.output_fn.call ""
+      end
+      imgs
     end
     
     def HCluster.deregister_image(image)
@@ -689,6 +762,11 @@ module Hadoop
     # if threaded, we would set to "pending" and then 
       # use join to determine when state should transition to "running".
       #    @launchTime = master.launchTime
+
+      @state = "final initialization,,"
+      #for portability, HCluster::run_test looks for /usr/local/hadoop/hadoop-test.jar.
+      ssh("ln -s /usr/local/hadoop/hadoop-test-*.jar /usr/local/hadoop/hadoop-test.jar")
+
       @state = "running"
     end
     
@@ -803,7 +881,8 @@ module Hadoop
     def HCluster.watch(name,instances,begin_output = "[launch:#{name}",end_output = "]\n",debug_level = @@debug_level)
       # note: this aws_connection is separate for this watch() function call:
       # this will hopefully allow us to run watch() in a separate thread if desired.
-      aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AWS_ACCESS_KEY_ID'],:secret_access_key=>ENV['AWS_SECRET_ACCESS_KEY'])
+      #FIXME: cache this AWS::EC2::Base instance.
+      @aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AWS_ACCESS_KEY_ID'],:secret_access_key=>ENV['AWS_SECRET_ACCESS_KEY'])
       
       print begin_output
       STDOUT.flush
@@ -822,11 +901,13 @@ module Hadoop
           # get status of instance instance.instanceId.
           begin
             begin
-              instance_info = aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
+              instance_info = @aws_connection.describe_instances({:instance_id => instance.instanceId}).reservationSet.item[0].instancesSet.item[0]
               status = instance_info.instanceState.name
             rescue OpenSSL::SSL::SSLError
               puts "aws_connection.describe_instance() encountered an SSL error - retrying."
               status = "waiting"
+#rescue User::Hit::Control::C
+# get info about instance so it's not ophaned/unterminatable.
             end
 
             if (!(status == "running"))
