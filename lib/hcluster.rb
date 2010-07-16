@@ -258,8 +258,8 @@ module Hadoop
         search_results = HCluster.search_images :image_id => options.image_id, :output_fn => nil
         if search_results && search_results.size > 0
           if search_results[0].name
-            puts "found image with label: #{options[:label]}."
             options[:label] = search_results[0].name
+            puts "found image with label: #{options[:label]}."
           else
             raise "Image name not found for AMI struct: #{search_results.to_yaml}."
           end
