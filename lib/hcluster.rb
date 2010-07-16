@@ -220,6 +220,7 @@ module Hadoop
       puts "   :debug_level  (@@debug_level)"
       puts "   :validate_images  (true)"
       puts "   :security_group_prefix (hcluster)"
+      puts "   :availability_zone (us-east-1a)"
       puts ""
       puts "HCluster.my_images shows a list of possible :label values."
     end
@@ -244,6 +245,7 @@ module Hadoop
         :debug_level => @@debug_level,
         :validate_images => true,
         :security_group_prefix => "hcluster",
+        :availability_zone => "us-east-1a",
       }.merge(options)
 
       
@@ -346,7 +348,7 @@ module Hadoop
       @aux = nil
       @ssh_input = []
       
-      @zone = "us-east-1a"
+      @zone = options[:availability_zone]
       
       #images
       @zk_image_label = options[:zk_image_label]
