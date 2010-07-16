@@ -1,6 +1,6 @@
 require 'hcluster'
 
-module HCluster
+module Hadoop
 
 class TestDFSIO < HCluster
   def initialize(options = {} )
