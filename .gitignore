@@ -3,4 +3,5 @@ bin/hbase-ec2-init-remote.sh.master
 bin/hbase-ec2-init-remote.sh.slave
 bin/hbase-ec2-env.sh
 bin/credentials.sh
+bin/create-hbase-image.out
 *.out
