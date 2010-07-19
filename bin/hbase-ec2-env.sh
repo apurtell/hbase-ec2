@@ -34,21 +34,24 @@ EC2_CERT=
 EC2_ROOT_SSH_KEY=
 
 # The version of HBase to use.
-HBASE_VERSION=0.20.4
+HBASE_VERSION=0.21-S-SNAPSHOT
 
 # The version of Hadoop to use.
-HADOOP_VERSION=0.20.2
+HADOOP_VERSION=0.20.104.2-SNAPSHOT
 
 # The Amazon EC2 bucket for images
 REGION=us-east-1
 #REGION=us-west-1
 #REGION=eu-west-1
 #REGION=ap-southeast-1
-S3_BUCKET=apache-hbase-images-$REGION
+S3_BUCKET=tm-gh
+
 # Account for bucket
 # We need this because S3 is returning account identifiers instead of bucket
 # names.
-S3_ACCOUNT=720040977164
+#S3_ACCOUNT=720040977164
+#S3_ACCOUNT=801535628028
+S3_ACCOUNT=165906456394
 
 # Enable public access web interfaces
 ENABLE_WEB_PORTS=false
@@ -111,13 +114,25 @@ USER_DATA_FILE=hbase-ec2-init-remote.sh
 # The version number of the installed JDK.
 JAVA_VERSION=1.6.0_20
 
+# rightscale base images
+# i386   ami-f719f79e  rightscale-us-east/RightImage_CentOS_5.4_i386_v5.3.0.manifest.xml    411009282317
+# x86_64 ami-c919f7a0  rightscale-us-east/RightImage_CentOS_5.4_x64_v5.3.0.manifest.xml     411009282317
+# i386   ami-f8b35e91  rightscale-us-east/CentOS_5.4_i386_v4.4.10.manifest.xml
+# x86_64 ami-ccb35ea5  rightscale-us-east/CentOS_5.4_x64_v4.4.10.manifest.xml
+# fedora 8
+# ami-48aa4921  ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
+# ami-f61dfd9f  ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
+
+BASE_386="ami-48aa4921"
+BASE_x86_64="ami-f61dfd9f"
+
 # SUPPORTED_ARCHITECTURES = ['i386', 'x86_64']
 if [ "$SLAVE_INSTANCE_TYPE" = "m1.small" -o "$SLAVE_INSTANCE_TYPE" = "c1.medium" ]; then
   SLAVE_ARCH='i386'
-  BASE_AMI_IMAGE=${BASE_AMI_IMAGE:-"ami-48aa4921"}  # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
+  BASE_AMI_IMAGE=${BASE_AMI_IMAGE:-$BASE_386}  # ec2-public-images/fedora-8-i386-base-v1.10.manifest.xml
 else
   SLAVE_ARCH='x86_64'
-  BASE_AMI_IMAGE=${BASE_AMI_IMAGE:-"ami-f61dfd9f"}  # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
+  BASE_AMI_IMAGE=${BASE_AMI_IMAGE:-$BASE_x86_64}  # ec2-public-images/fedora-8-x86_64-base-v1.10.manifest.xml
 fi
 
 if [ "$MASTER_INSTANCE_TYPE" = "m1.small" -o "$MASTER_INSTANCE_TYPE" = "c1.medium" ]; then

@@ -50,8 +50,12 @@ yum -y clean all
 # Install Hadoop
 echo "Installing Hadoop $HADOOP_VERSION."
 cd /usr/local
-wget -nv http://archive.apache.org/dist/hadoop/core/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
-[ ! -f hadoop-$HADOOP_VERSION.tar.gz ] && wget -nv http://www.apache.org/dist/hadoop/core/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
+# Allow uploading a local version in place of checking archives
+if [ ! -f hadoop-$HADOOP_VERSION.tar.gz ];
+then
+	wget -nv http://archive.apache.org/dist/hadoop/core/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
+	[ ! -f hadoop-$HADOOP_VERSION.tar.gz ] && wget -nv http://www.apache.org/dist/hadoop/core/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz
+fi
 tar xzf hadoop-$HADOOP_VERSION.tar.gz
 rm -f hadoop-$HADOOP_VERSION.tar.gz
 
@@ -66,7 +70,11 @@ sed -i \
 # Install HBase
 echo "Installing HBase $HBASE_VERSION."
 cd /usr/local
-wget -nv http://hbase.s3.amazonaws.com/hbase/hbase-$HBASE_VERSION.tar.gz
+# allow local uploads to overwrite the  S3 versions
+if [ ! -f hbase-$HBASE_VERSION.tar.gz ];
+then
+	wget -nv http://hbase.s3.amazonaws.com/hbase/hbase-$HBASE_VERSION.tar.gz
+fi
 tar xzf hbase-$HBASE_VERSION.tar.gz
 rm -f hbase-$HBASE_VERSION.tar.gz
 

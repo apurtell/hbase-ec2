@@ -55,6 +55,35 @@ sed -e "s|%MASTER_HOST%|$MASTER_HOST|" \
 
 # Start slaves
 echo "Starting $NO_INSTANCES AMI(s) with ID $AMI_IMAGE (arch $SLAVE_ARCH) in group $CLUSTER in zone $MASTER_ZONE"
-ec2-run-instances $AMI_IMAGE $TOOL_OPTS -n "$NO_INSTANCES" -g "$CLUSTER" -k root -f "$bin"/$USER_DATA_FILE.slave -t "$SLAVE_INSTANCE_TYPE" -z "$MASTER_ZONE" | grep INSTANCE | awk '{print $2}'
+slaves=$(ec2-run-instances $AMI_IMAGE $TOOL_OPTS -n "$NO_INSTANCES" -g "$CLUSTER" -k root -f "$bin"/$USER_DATA_FILE.slave -t "$SLAVE_INSTANCE_TYPE" -z "$MASTER_ZONE" | grep INSTANCE | awk '{print $2}')
+for shost in $slaves
+do
+  # get private dns
+  echo -n "  $shost"
+  while true; do
+    printf "."
+    # get private dns
+	SLAVE_HOST=`ec2-describe-instances $TOOL_OPTS $shost | grep running | awk '{print $5}'`
+	if [ ! -z $SLAVE_HOST ]; then
+		echo -n " started as $SLAVE_HOST"
+		break;
+	fi
+	sleep 1
+  done
+
+  SLAVE_EC2_HOST=`ec2-describe-instances $TOOL_OPTS $shost | grep INSTANCE | grep running | grep $SLAVE_HOST | awk '{print $4}'`
+  echo ", public: $SLAVE_EC2_HOST"
+
+  # make sure slave is ssh-able
+  while true; do
+	REPLY=`ssh $SSH_OPTS "root@$SLAVE_EC2_HOST" 'echo "hello"'`
+	if [ ! -z $REPLY ]; then
+	  break;
+	fi
+	sleep 5
+  done
+  scp $SSH_OPTS $EC2_ROOT_SSH_KEY "root@$SLAVE_EC2_HOST:/root/.ssh/id_rsa"
+  ssh $SSH_OPTS "root@$SLAVE_EC2_HOST" "chmod 600 /root/.ssh/id_rsa"
+done
 
 rm "$bin"/$USER_DATA_FILE.slave

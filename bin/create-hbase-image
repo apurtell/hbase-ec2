@@ -21,6 +21,9 @@
 # allow override of SLAVE_INSTANCE_TYPE from the command line 
 [ ! -z $1 ] && SLAVE_INSTANCE_TYPE=$1
 
+[ ! -z $2 ] && HADOOP_ARCHIVE=$2
+[ ! -z $3 ] && HBASE_ARCHIVE=$3
+
 # Import variables
 bin=`dirname "$0"`
 bin=`cd "$bin"; pwd`
@@ -71,9 +74,20 @@ fi
 scp $SSH_OPTS "$bin"/image/create-hbase-image-remote "root@$HOSTNAME:/mnt"
 scp $SSH_OPTS "$bin"/image/ec2-run-user-data "root@$HOSTNAME:/etc/init.d"
 
+# Copy local hadoop and hbase packages, if specified
+if [ ! -z $HADOOP_ARCHIVE ];
+then
+  scp $SSH_OPTS $HADOOP_ARCHIVE "root@$HOSTNAME:/usr/local"
+fi
+if [ ! -z $HBASE_ARCHIVE ];
+then
+  scp $SSH_OPTS $HBASE_ARCHIVE "root@$HOSTNAME:/usr/local"
+fi
+
 # Copy private key and certificate (for bundling image)
 scp $SSH_OPTS $EC2_PRIVATE_KEY "root@$HOSTNAME:/mnt"
 scp $SSH_OPTS $EC2_CERT "root@$HOSTNAME:/mnt"
+
 
 # Connect to it
 ssh $SSH_OPTS "root@$HOSTNAME" "sh -c \"INSTANCE_TYPE=$type ARCH=$arch /mnt/create-hbase-image-remote\""
