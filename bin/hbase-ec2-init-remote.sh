@@ -412,10 +412,6 @@ cat > $HADOOP_HOME/conf/mapred-site.xml <<EOF
   <value>true</value>
 </property>
 <property>
-  <name>mapreduce.cluster.job-authorization-enabled</name>
-  <value>true</value>
-</property>
-<property>
   <name>mapreduce.job.acl-modify-job</name>
   <value></value>
 </property>
