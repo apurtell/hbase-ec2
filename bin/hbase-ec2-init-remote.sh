@@ -172,6 +172,70 @@ cat > $HADOOP_HOME/conf/mapred-site.xml <<EOF
   <name>io.compression.codecs</name>
   <value>org.apache.hadoop.io.compress.GzipCodec,org.apache.hadoop.io.compress.DefaultCodec,org.apache.hadoop.io.compress.BZip2Codec,com.hadoop.compression.lzo.LzoCodec,com.hadoop.compression.lzo.LzopCodec</value>
 </property>
+<property>
+  <name>mapreduce.jobtracker.keytab.file</name>
+  <value>$HADOOP_HOME/conf/nn.keytab</value>
+</property>	
+<property>
+  <name>mapreduce.jobtracker.kerberos.principal</name>
+  <value>hadoop/$MASTER_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>mapreduce.jobtracker.kerberos.https.principal</name>
+  <value>hadoop/$MASTER_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>mapreduce.tasktracker.keytab.file</name>
+  <value>$HADOOP_HOME/conf/nn.keytab</value>
+</property>	
+<property>
+  <name>mapreduce.tasktracker.kerberos.principal</name>
+  <value>hadoop/$HOSTNAME@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>mapreduce.tasktracker.kerberos.https.principal</name>
+  <value>hadoop/$HOSTNAME@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>mapreduce.jobtracker.system.dir</name>
+  <value>/tmp/mapred/system</value>
+</property>
+<property>
+  <name>mapreduce.jobtracker.staging.root.dir</name>
+  <value>/user</value>
+</property>
+<property>
+  <name>mapred.temp.dir</name>
+  <value>/tmp/mapred/temp</value>
+</property>
+<property>
+  <name>mapred.acls.enabled</name>
+  <value>true</value>
+</property>
+<property>
+  <name>mapreduce.job.acl-modify-job</name>
+  <value></value>
+</property>
+<property>
+  <name>mapreduce.job.acl-view-job</name>
+  <value></value>
+</property>
+<property>
+  <name>io.compression.codec.lzo.class</name>
+  <value>com.hadoop.compression.lzo.LzoCodec</value>
+</property>
+<property>
+  <name>mapred.map.tasks</name>
+  <value>4</value>
+</property>
+<property>
+  <name>mapred.map.tasks.speculative.execution</name>
+  <value>false</value>
+</property>
+<property>
+  <name>mapred.child.java.opts</name>
+  <value>-Xmx512m -XX:+UseCompressedOops</value>
+</property>
 </configuration>
 EOF
 # Update classpath to include HBase jars and config

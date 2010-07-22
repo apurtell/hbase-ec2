@@ -396,13 +396,13 @@ module Hadoop
       end
       
       #machine instance types
-      #    @zk_instance_type = "m1.small"
-      #    @zk_instance_type = "c1.xlarge"
-      #    @rs_instance_type = "c1.xlarge"
-      #    @master_instance_type = "c1.xlarge"
       @zk_instance_type = "m1.large"
-      @rs_instance_type = "m1.large"
-      @master_instance_type = "m1.large"
+      #    @zk_instance_type = "c1.xlarge"
+      @rs_instance_type = "c1.xlarge"
+      @master_instance_type = "c1.xlarge"
+      # @zk_instance_type = "m1.large"
+      # @rs_instance_type = "m1.large"
+      # @master_instance_type = "m1.large"
       
       #ssh keys
       @zk_key_name = "root"
