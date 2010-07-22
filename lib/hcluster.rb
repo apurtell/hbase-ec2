@@ -261,6 +261,7 @@ module Hadoop
         if search_results && search_results.size > 0
           if search_results[0].name
             options[:label] = search_results[0].name
+            options[:validate_images] = false
             puts "found image with label: #{options[:label]}."
           else
             raise "Image name not found for AMI struct: #{search_results.to_yaml}."
