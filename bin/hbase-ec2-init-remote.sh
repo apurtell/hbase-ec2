@@ -646,8 +646,8 @@ if [ "$IS_MASTER" = "true" ]; then
 else
     if [ "$IS_AUX" != "true" ]; then
 	"$HADOOP_HOME"/bin/hadoop-daemon.sh start datanode
-+  # "$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
-	"$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
+  # "$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
+  "$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
     fi
 fi
 
