@@ -752,7 +752,7 @@ module Hadoop
     def launch
       @state = "launching"
       
-    init_hbase_cluster_secgroups
+      init_hbase_cluster_secgroups
       launch_zookeepers
       launch_master
       launch_slaves
@@ -760,7 +760,7 @@ module Hadoop
         launch_aux
       end
       
-    # if threaded, we would set to "pending" and then 
+      # if threaded, we would set to "pending" and then 
       # use join to determine when state should transition to "running".
       #    @launchTime = master.launchTime
 
