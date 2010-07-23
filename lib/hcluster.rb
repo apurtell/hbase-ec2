@@ -1008,8 +1008,7 @@ module Hadoop
         # so we can remove the ZOOKEEPER_QUORUM=.. from the following.
         HCluster::ssh_to(zk.dnsName,
                          "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-#                         HCluster::summarize_output,HCluster::summarize_output,
-                         HCluster::echo_stdout,HCluster::echo_stderr,
+                         HCluster::summarize_output,HCluster::summarize_output,
                          "[setup:zk:#{zk.dnsName}",
                          "]\n")
       }
