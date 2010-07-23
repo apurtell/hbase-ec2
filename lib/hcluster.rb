@@ -263,6 +263,9 @@ module Hadoop
             options[:label] = search_results[0].name
             options[:validate_images] = false
             puts "found image with label: #{options[:label]}."
+            @zk_image_id = options[:image_id]
+            @master_image_id = options[:image_id]
+            @slave_image_id = options[:image_id]
           else
             raise "Image name not found for AMI struct: #{search_results.to_yaml}."
           end
@@ -937,9 +940,7 @@ module Hadoop
     end
     
     def launch_zookeepers
-      options = {}
-      zk_img_id = zk_image['imageId']
-      options[:image_id] = zk_img_id
+      options[:image_id] = zk_image['imageId']
       options[:min_count] = @num_zookeepers
       options[:max_count] = @num_zookeepers
       options[:security_group] = @zk_security_group
@@ -1161,16 +1162,25 @@ module Hadoop
         @@shared_base_object.describe_images(options)
       end
     end
-    
+
     def zk_image
+      if @zk_image_id
+        return @@shared_base_object.describe_images(:image_id => @zk_image_id)['imagesSet']['item'][0]
+      end
       get_image(@zk_image_label)
     end
     
     def regionserver_image
+      if @slave_image_id
+        return @@shared_base_object.describe_images(:image_id => @slave_image_id)['imagesSet']['item'][0]
+      end
       get_image(@slave_image_label)
     end
     
     def master_image
+      if @master_image_id
+        return @@shared_base_object.describe_images(:image_id => @master_image_id)['imagesSet']['item'][0]
+      end
       get_image(@master_image_label)
     end
     
@@ -1179,7 +1189,11 @@ module Hadoop
     end
     
     def get_image(image_label)
-      matching_image = HCluster.describe_images({:owner_id => @ami_owner_id},image_label)
+      options = {
+        :owner_id => @ami_owner_id
+      }.merge(options)
+
+      matching_image = HCluster.describe_images(options,image_label)
       if matching_image
         matching_image
       else
