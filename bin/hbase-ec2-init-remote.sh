@@ -32,31 +32,87 @@ NUM_SLAVES=$3
 EXTRA_PACKAGES=$4
 SECURITY_GROUPS=`wget -q -O - http://169.254.169.254/latest/meta-data/security-groups`
 IS_MASTER=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-master$"); if (a) print "true"; else print "false"; }'`
+IS_AUX=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-aux$"); if (a) print "true"; else print "false"; }'`
 if [ "$IS_MASTER" = "true" ]; then
  MASTER_HOST=`wget -q -O - http://169.254.169.254/latest/meta-data/local-hostname`
 fi
+MASTER_HOST=$(echo "$MASTER_HOST" | tr '[:upper:]' '[:lower:]')
+
 HADOOP_HOME=`ls -d /usr/local/hadoop-* | grep -v tar.gz | head -n1`
 HADOOP_VERSION=`echo $HADOOP_HOME | cut -d '-' -f 2`
 HBASE_HOME=`ls -d /usr/local/hbase-* | grep -v tar.gz | head -n1`
 HBASE_VERSION=`echo $HBASE_HOME | cut -d '-' -f 2`
+
+HADOOP_SECURE_DN_USER=hadoop
+
+HOSTNAME=`hostname --fqdn | awk '{print tolower($1)}'`
+HOST_IP=$(host $HOSTNAME | awk '{print $4}')
 
 echo "HADOOP HOME: ${HADOOP_HOME}; HADOOP_VERSION: ${HADOOP_VERSION}"
 echo "HBASE HOME: ${HBASE_HOME}; HBASE_VERSION: ${HBASE_VERSION}"
 
 export USER="root"
 
+
+############
+# Common functions
+#
+
+add_client() {
+  user=$1
+  pass=$2
+  kt=$3
+  host=$4
+  /usr/kerberos/sbin/kadmin -p $user -w $pass <<EOF 
+add_principal -randkey host/$host
+add_principal -randkey hadoop/$host
+add_principal -randkey hbase/$host
+ktadd -k $kt host/$host
+ktadd -k $kt hadoop/$host
+ktadd -k $kt hbase/$host
+quit
+EOF
+
+}
+
+#
+# Setup to run on KDC
+#
+kadmin_setup() {
+  kmasterpass=$1
+  kadmpass=$2
+
+  # Initialize the kerberos database
+  /usr/kerberos/sbin/kdb5_util create -s -P ${kmasterpass}
+  service krb5kdc start
+  service kadmin start
+  sleep 1
+
+  # add standard principals
+  /usr/kerberos/sbin/kadmin.local <<EOF 
+add_principal -pw $kadmpass kadmin/admin
+add_principal -pw $kadmpass hadoop/admin
+add_principal -pw had00p hclient
+quit
+EOF
+}
+
 # up file-max
-sysctl -w fs.file-max=65535
+sysctl -w fs.file-max=32768
 
 # up ulimits
-echo "root soft nofile 65535" >> /etc/security/limits.conf
-echo "root hard nofile 65535" >> /etc/security/limits.conf
-ulimit -n 65535
+echo "root soft nofile 32768" >> /etc/security/limits.conf
+echo "root hard nofile 32768" >> /etc/security/limits.conf
 
 # up epoll limits; ok if this fails, only valid for kernels 2.6.27+
-sysctl -w fs.epoll.max_user_instances=65535 > /dev/null 2>&1
+sysctl -w fs.epoll.max_user_instances=32768 > /dev/null 2>&1
 
 [ ! -f /etc/hosts ] &&  echo "127.0.0.1 localhost" > /etc/hosts
+echo "$HOST_IP $HOSTNAME" >> /etc/hosts
+
+# note kdc hostname
+echo -n "$MASTER_HOST" > /etc/tm-kdc-hostname
+
 
 # Extra packages
 
@@ -67,6 +123,95 @@ if [ "$EXTRA_PACKAGES" != "" ] ; then
   yum -y update yum
   yum -y install ${pkg[@]:1}
 fi
+
+# Security setup
+# all servers need krb5 libraries
+yum -y install krb5-libs jakarta-commons-daemon-jsvc
+ln -s /usr/bin/jsvc $HADOOP_HOME/bin
+adduser hadoop
+if [ "$IS_MASTER" = "true" ]; then
+  yum -y install krb5-server
+  cat > /var/kerberos/krb5kdc/kadm5.acl <<EOF
+*/admin@HADOOP.LOCALDOMAIN    *
+EOF
+
+  cat > /var/kerberos/krb5kdc/kdc.conf <<EOF
+[kdcdefaults]
+ v4_mode = nopreauth
+ kdc_ports = 0
+ kdc_tcp_ports = 88
+
+[realms]
+ HADOOP.LOCALDOMAIN = {
+  master_key_type = des3-hmac-sha1
+  acl_file = /var/kerberos/krb5kdc/kadm5.acl
+  dict_file = /usr/share/dict/words
+  admin_keytab = /var/kerberos/krb5kdc/kadm5.keytab
+  supported_enctypes = des3-hmac-sha1:normal des-cbc-crc:normal des:normal des:v4 des:norealm des:onlyrealm
+  max_life = 1d 0h 0m 0s
+  max_renewable_life = 7d 0h 0m 0s
+  default_principal_flags = +preauth
+ }
+EOF
+fi
+
+cat > /etc/krb5.conf <<EOF
+[logging]
+ default = FILE:/var/log/krb5libs.log
+ kdc = FILE:/var/log/krb5kdc.log
+ admin_server = FILE:/var/log/kadmind.log
+
+[libdefaults]
+ default_realm = HADOOP.LOCALDOMAIN
+ dns_lookup_realm = false
+ dns_lookup_kdc = false
+ ticket_lifetime = 24h
+ forwardable = yes
+ proxiable = yes
+ udp_preference_limit = 1
+ extra_addresses = 127.0.0.1
+ kdc_timesync = 1
+ ccache_type = 4
+
+[realms]
+ HADOOP.LOCALDOMAIN = {
+  kdc = ${MASTER_HOST}:88
+  admin_server = ${MASTER_HOST}:749
+ }
+
+[domain_realm]
+ localhost = HADOOP.LOCALDOMAIN
+ .compute-1.internal = HADOOP.LOCALDOMAIN
+ .internal = HADOOP.LOCALDOMAIN
+ internal = HADOOP.LOCALDOMAIN
+
+[appdefaults]
+ pam = {
+   debug = false
+   ticket_lifetime = 36000
+   renew_lifetime = 36000
+   forwardable = true
+   krb4_convert = false
+ }
+
+[login]
+	krb4_convert = true
+	krb4_get_tickets = false
+EOF
+
+# TODO: generate these from pwgen and pass throug
+KDC_MASTER_PASS="EiSei0Da"
+KDC_ADMIN_PASS="Chohpet6"
+
+if [ "$IS_MASTER" = "true" ]; then
+  kadmin_setup $KDC_MASTER_PASS $KDC_ADMIN_PASS
+fi
+
+# add principals for this host
+keytab="$HADOOP_HOME/conf/nn.keytab"
+# create local principals and keytab
+add_client "hadoop/admin" $KDC_ADMIN_PASS $keytab $HOSTNAME
+chown hadoop:hadoop $keytab
 
 # Ganglia
 
@@ -112,6 +257,8 @@ for d in c d e f g h i j k l m n o p q r s t u v w x y z; do
     if [ $i -lt 3 ] ; then # no more than two namedirs
       DFS_NAME_DIR="${DFS_NAME_DIR},${m}/hadoop/dfs/name"
     fi
+    mkdir -p ${m}/hadoop/dfs/data
+	chown $HADOOP_SECURE_DN_USER:root ${m}/hadoop/dfs/data
     DFS_DATA_DIR="${DFS_DATA_DIR},${m}/hadoop/dfs/data"
     i=$(( i + 1 ))
   fi
@@ -136,6 +283,14 @@ cat > $HADOOP_HOME/conf/core-site.xml <<EOF
   <name>fs.default.name</name>
   <value>hdfs://$MASTER_HOST:8020</value>
 </property>
+<property>
+  <name>hadoop.security.authorization</name>
+  <value>true</value>
+</property>
+<property>
+  <name>hadoop.security.authentication</name>
+  <value>kerberos</value>
+</property>
 </configuration>
 EOF
 cat > $HADOOP_HOME/conf/hdfs-site.xml <<EOF
@@ -155,12 +310,69 @@ cat > $HADOOP_HOME/conf/hdfs-site.xml <<EOF
   <value>$DFS_DATA_DIR</value>
 </property>
 <property>
+  <name>dfs.replication</name>
+  <value>2</value>
+</property>
+<property>
+  <name>dfs.support.append</name>
+  <value>false</value>
+</property>
+<property>
   <name>dfs.datanode.handler.count</name>
   <value>10</value>
 </property>
 <property>
   <name>dfs.datanode.max.xcievers</name>
   <value>10000</value>
+</property>
+<!-- security configuration -->
+<property>
+  <name>dfs.https.port</name>
+  <value>50475</value>
+</property>
+<property>
+  <name>dfs.namenode.keytab.file</name>
+  <value>$HADOOP_HOME/conf/nn.keytab</value>
+</property>	
+<property>
+  <name>dfs.namenode.kerberos.principal</name>
+  <value>hadoop/$MASTER_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>dfs.namenode.kerberos.https.principal</name>
+  <value>hadoop/$MASTER_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>dfs.secondary.https.port</name>
+  <value>50495</value>
+</property>	
+<property>
+  <name>dfs.secondary.namenode.keytab.file</name>
+  <value>$HADOOP_HOME/conf/nn.keytab</value>
+</property>	
+<property>
+  <name>dfs.secondary.namenode.kerberos.principal</name>
+  <value>hadoop/$MASTER_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>dfs.secondary.namenode.kerberos.https.principal</name>
+  <value>hadoop/$MASTER_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>dfs.datanode.keytab.file</name>
+  <value>$HADOOP_HOME/conf/nn.keytab</value>
+</property>	
+<property>
+  <name>dfs.datanode.kerberos.principal</name>
+  <value>hadoop/$HOSTNAME@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>dfs.datanode.kerberos.https.principal</name>
+  <value>hadoop/$HOSTNAME@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>dfs.block.access.token.enable</name>
+  <value>true</value>
 </property>
 </configuration>
 EOF
@@ -217,6 +429,10 @@ cat > $HADOOP_HOME/conf/mapred-site.xml <<EOF
   <value>true</value>
 </property>
 <property>
+  <name>mapreduce.cluster.job-authorization-enabled</name>
+  <value>true</value>
+</property>
+<property>
   <name>mapreduce.job.acl-modify-job</name>
   <value></value>
 </property>
@@ -241,6 +457,10 @@ cat > $HADOOP_HOME/conf/mapred-site.xml <<EOF
   <value>-Xmx512m -XX:+UseCompressedOops</value>
 </property>
 </configuration>
+EOF
+# Add JVM options
+cat >> $HADOOP_HOME/conf/hadoop-env.sh <<EOF
+export HADOOP_OPTS="$HADOOP_OPTS -XX:+UseCompressedOops"
 EOF
 # Update classpath to include HBase jars and config
 cat >> $HADOOP_HOME/conf/hadoop-env.sh <<EOF
@@ -281,6 +501,14 @@ cat > $HBASE_HOME/conf/hbase-site.xml <<EOF
 <property>
   <name>hbase.zookeeper.quorum</name>
   <value>$ZOOKEEPER_QUORUM</value>
+</property>
+ <property>
+  <name>hadoop.security.authorization</name>
+  <value>true</value>
+</property>
+<property>
+  <name>hadoop.security.authentication</name>
+  <value>kerberos</value>
 </property>
 <property>
   <name>hbase.regionserver.handler.count</name>
@@ -334,13 +562,64 @@ cat > $HBASE_HOME/conf/hbase-site.xml <<EOF
   <name>hbase.tmp.dir</name>
   <value>/mnt/hbase</value>
 </property>
+<!-- Security RPC setup -->
+<property>
+  <name>hbase.master.keytab.file</name>
+  <value>$HADOOP_HOME/conf/nn.keytab</value>
+</property>	
+<property>
+  <name>hbase.master.kerberos.principal</name>
+  <value>hbase/_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>hbase.master.kerberos.https.principal</name>
+  <value>hbase/_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>hbase.regionserver.keytab.file</name>
+  <value>$HADOOP_HOME/conf/nn.keytab</value>
+</property>	
+<property>
+  <name>hbase.regionserver.kerberos.principal</name>
+  <value>hbase/_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
+<property>
+  <name>hbase.regionserver.kerberos.https.principal</name>
+  <value>hbase/_HOST@HADOOP.LOCALDOMAIN</value>
+</property>
 </configuration>
 EOF
+
+cat > $HBASE_HOME/conf/hadoop-policy.xml <<EOF
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>security.client.protocol.acl</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>security.admin.protocol.acl</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>security.masterregion.protocol.acl</name>
+    <value>*</value>
+  </property>
+</configuration>
+EOF
+# link in hadoop config (for dfs client)
+ln -s $HADOOP_HOME/conf/core-site.xml $HBASE_HOME/conf/
+ln -s $HADOOP_HOME/conf/hdfs-site.xml $HBASE_HOME/conf/
+ln -s $HADOOP_HOME/conf/mapred-site.xml $HBASE_HOME/conf/
 # Override JVM options
 cat >> $HBASE_HOME/conf/hbase-env.sh <<EOF
 export HBASE_MASTER_OPTS="-Xmx1000m -XX:+UseConcMarkSweepGC -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-master-gc.log"
 export HBASE_REGIONSERVER_OPTS="-Xmx2000m -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=88 -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-regionserver-gc.log"
 EOF
+# Configure log4j
+sed -i -e 's/hadoop.hbase=DEBUG/hadoop.hbase=INFO/g' \
+    $HBASE_HOME/conf/log4j.properties
 # Configure HBase for Ganglia
 cat > $HBASE_HOME/conf/hadoop-metrics.properties <<EOF
 dfs.class=org.apache.hadoop.metrics.ganglia.GangliaContext
@@ -367,6 +646,7 @@ if [ "$IS_MASTER" = "true" ]; then
 else
     if [ "$IS_AUX" != "true" ]; then
 	"$HADOOP_HOME"/bin/hadoop-daemon.sh start datanode
++  # "$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
 	"$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
     fi
 fi
