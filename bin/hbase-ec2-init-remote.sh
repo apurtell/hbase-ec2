@@ -26,18 +26,22 @@ ln -s $JAVA_HOME /usr/local/jdk
 # Script that is run on each EC2 instance on boot. It is passed in the EC2 user
 # data, so should not exceed 16K in size.
 
-MASTER_HOST="%MASTER_HOST%"
-ZOOKEEPER_QUORUM="%ZOOKEEPER_QUORUM%"
-EXTRA_PACKAGES="%EXTRA_PACKAGES%"
+MASTER_HOST=$1
+ZOOKEEPER_QUORUM=$2
+NUM_SLAVES=$3
+EXTRA_PACKAGES=$4
 SECURITY_GROUPS=`wget -q -O - http://169.254.169.254/latest/meta-data/security-groups`
 IS_MASTER=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-master$"); if (a) print "true"; else print "false"; }'`
 if [ "$IS_MASTER" = "true" ]; then
  MASTER_HOST=`wget -q -O - http://169.254.169.254/latest/meta-data/local-hostname`
 fi
-HADOOP_HOME=`ls -d /usr/local/hadoop-*`
+HADOOP_HOME=`ls -d /usr/local/hadoop-* | grep -v tar.gz | head -n1`
 HADOOP_VERSION=`echo $HADOOP_HOME | cut -d '-' -f 2`
-HBASE_HOME=`ls -d /usr/local/hbase-*`
+HBASE_HOME=`ls -d /usr/local/hbase-* | grep -v tar.gz | head -n1`
 HBASE_VERSION=`echo $HBASE_HOME | cut -d '-' -f 2`
+
+echo "HADOOP HOME: ${HADOOP_HOME}; HADOOP_VERSION: ${HADOOP_VERSION}"
+echo "HBASE HOME: ${HBASE_HOME}; HBASE_VERSION: ${HBASE_VERSION}"
 
 export USER="root"
 
