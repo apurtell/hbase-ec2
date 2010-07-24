@@ -199,7 +199,7 @@ cat > /etc/krb5.conf <<EOF
 	krb4_get_tickets = false
 EOF
 
-# TODO: generate these from pwgen and pass throug
+# TODO: generate these from pwgen and pass through.
 KDC_MASTER_PASS="EiSei0Da"
 KDC_ADMIN_PASS="Chohpet6"
 
