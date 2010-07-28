@@ -260,15 +260,19 @@ module Hadoop
         search_results = HCluster.search_images :image_id => options.image_id, :output_fn => nil
         if search_results && search_results.size > 0
           if search_results[0].name
+            puts "#{options.image_id} has label: #{search_results[0].name}"
             options[:label] = search_results[0].name
-            options[:validate_images] = false
-            puts "found image with label: #{options[:label]}."
-            @zk_image_id = options[:image_id]
-            @master_image_id = options[:image_id]
-            @slave_image_id = options[:image_id]
           else
-            raise "Image name not found for AMI struct: #{search_results.to_yaml}."
+            puts "Warning: image name not found for AMI struct:\n#{search_results.to_yaml}."
+            puts " (using 'No_lable' as label)."  
+            options[:label] = 'No_label'
           end
+  
+          options[:validate_images] = false
+
+          @zk_image_id = options[:image_id]
+          @master_image_id = options[:image_id]
+          @slave_image_id = options[:image_id]
         else
           raise "AMI : '#{options[:image_id]}' not found."
         end
