@@ -552,11 +552,11 @@ cat > $HBASE_HOME/conf/hbase-site.xml <<EOF
 </property>	
 <property>
   <name>hbase.master.kerberos.principal</name>
-  <value>hbase/$MASTER_HOST@HADOOP.LOCALDOMAIN</value>
+  <value>hbase/_HOST@HADOOP.LOCALDOMAIN</value>
 </property>
 <property>
   <name>hbase.master.kerberos.https.principal</name>
-  <value>hbase/$MASTER_HOST@HADOOP.LOCALDOMAIN</value>
+  <value>hbase/_HOST@HADOOP.LOCALDOMAIN</value>
 </property>
 <property>
   <name>hbase.regionserver.keytab.file</name>
@@ -564,11 +564,11 @@ cat > $HBASE_HOME/conf/hbase-site.xml <<EOF
 </property>	
 <property>
   <name>hbase.regionserver.kerberos.principal</name>
-  <value>hbase/$HOSTNAME@HADOOP.LOCALDOMAIN</value>
+  <value>hbase/_HOST@HADOOP.LOCALDOMAIN</value>
 </property>
 <property>
   <name>hbase.regionserver.kerberos.https.principal</name>
-  <value>hbase/$HOSTNAME@HADOOP.LOCALDOMAIN</value>
+  <value>hbase/_HOST@HADOOP.LOCALDOMAIN</value>
 </property>
 </configuration>
 EOF
