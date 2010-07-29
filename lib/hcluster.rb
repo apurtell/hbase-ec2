@@ -264,7 +264,7 @@ module Hadoop
             options[:label] = search_results[0].name
           else
             puts "Warning: image name not found for AMI struct:\n#{search_results.to_yaml}."
-            puts " (using 'No_lable' as label)."  
+            puts " (using 'No_label' as label)."  
             options[:label] = 'No_label'
           end
   
