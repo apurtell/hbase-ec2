@@ -209,7 +209,7 @@ module Hadoop
       puts "HCluster.new"
       puts "  options: (default) (example)"
       puts "   :label (nil) (see HCluster.my_images for a list of labels)"
-      puts "   :image_id (nil) (overrides :label - use only one of {:label,:image_id}) ('ami-dc866db5')"
+      puts "   :ami (nil) (overrides :label - use only one of {:label,:ami}) ('ami-dc866db5')"
       puts "   :hbase_version (ENV['HBASE_VERSION'])"
       puts "   :num_regionservers  (3)"
       puts "   :num_zookeepers  (1)"
@@ -227,7 +227,7 @@ module Hadoop
 
     def initialize( options = {} )
 
-      if options.size == 0 || (options.image_id == nil && options.label == nil)
+      if options.size == 0 || (options.ami == nil && options.label == nil)
         #not enough info to create cluster: show documentation.
         initialize_print_usage
         return nil
@@ -254,13 +254,20 @@ module Hadoop
         @ami_owner_id = options[:owner_id]
       end
 
+      #backwards compatibility
+      #use :ami, not :image_id, in the future.
       if options[:image_id]
+        options[:ami] = options[:image_id]
+      end
+
+      if options[:ami]
         #overrides options[:label] if present.
-        puts "searching for image: '#{options.image_id}'.."
-        search_results = HCluster.search_images :image_id => options.image_id, :output_fn => nil
+        puts "searching for AMI: '#{options.ami}'.."
+        search_results = HCluster.search_images :ami => options.ami, :output_fn => nil
+        puts "search results size: #{search_results.size}"
         if search_results && search_results.size > 0
           if search_results[0].name
-            puts "#{options.image_id} has label: #{search_results[0].name}"
+            puts "#{options.ami} has label: #{search_results[0].name}"
             options[:label] = search_results[0].name
           else
             puts "Warning: image name not found for AMI struct:\n#{search_results.to_yaml}."
@@ -270,11 +277,11 @@ module Hadoop
   
           options[:validate_images] = false
 
-          @zk_image_id = options[:image_id]
-          @master_image_id = options[:image_id]
-          @slave_image_id = options[:image_id]
+          @zk_ami = options[:ami]
+          @master_ami = options[:ami]
+          @slave_ami = options[:ami]
         else
-          raise "AMI : '#{options[:image_id]}' not found."
+          raise "AMI : '#{options[:ami]}' not found."
         end
       end
       
@@ -529,7 +536,7 @@ module Hadoop
       puts "HCluster.search_image(options)"
       puts "  options: (default value) (example)"
       puts "  :owner_id (nil)"
-      puts "  :image_id (nil) ('ami-dc866db5')"
+      puts "  :ami (nil) ('ami-dc866db5')"
       puts "  :output_fn (puts)"
     end
 
@@ -540,8 +547,8 @@ module Hadoop
         return nil
       end
 
-      #if no image_id, set owner_id to HCluster owner.
-      if options[:image_id]
+      #if no ami, set owner_id to HCluster owner.
+      if options[:ami]
         search_all_visible_images = true
       else
         search_all_visible_images = false
@@ -558,7 +565,7 @@ module Hadoop
 
       imgs = HCluster.describe_images(options).imagesSet.item
       if options[:output_fn]
-        options.output_fn.call "label\t\t\t\timage_id\t\t\towner_id"
+        options.output_fn.call "label\t\t\t\tami\t\t\towner_id"
         options.output_fn.call "========================================================================="
         imgs.each {|image| 
           options.output_fn.call "#{image.name}\t\t#{image.imageId}\t\t#{image.imageOwnerId}"
@@ -569,7 +576,7 @@ module Hadoop
     end
     
     def HCluster.deregister_image(image)
-      @@shared_base_object.deregister_image({:image_id => image})
+      @@shared_base_object.deregister_image({:ami => image})
     end
 
     def HCluster.create_image_print_usage
@@ -646,7 +653,7 @@ module Hadoop
       puts "Starting a AMI with ID: #{@@default_base_ami_image}."
       
       launch = do_launch({
-                           :image_id => @@default_base_ami_image,
+                           :ami => @@default_base_ami_image,
                            :key_name => "root",
                            :instance_type => "m1.large"
                          },"image-creator")
@@ -944,7 +951,7 @@ module Hadoop
     end
     
     def launch_zookeepers
-      options[:image_id] = zk_image['imageId']
+      options[:ami] = zk_image['imageId']
       options[:min_count] = @num_zookeepers
       options[:max_count] = @num_zookeepers
       options[:security_group] = @zk_security_group
@@ -964,7 +971,7 @@ module Hadoop
     
     def launch_master
       options = {}
-      options[:image_id] = master_image['imageId'] 
+      options[:ami] = master_image['imageId'] 
       options[:min_count] = 1
       options[:max_count] = 1
       options[:security_group] = @master_security_group
@@ -976,7 +983,7 @@ module Hadoop
     
     def launch_slaves
       options = {}
-      options[:image_id] = regionserver_image['imageId']
+      options[:ami] = regionserver_image['imageId']
       options[:min_count] = @num_regionservers
       options[:max_count] = @num_regionservers
       options[:security_group] = @rs_security_group
@@ -988,7 +995,7 @@ module Hadoop
     
     def launch_aux
       options = {}
-      options[:image_id] = regionserver_image['imageId']
+      options[:ami] = regionserver_image['imageId']
       options[:min_count] = 1
       options[:max_count] = 1
       options[:security_group] = @aux_security_group
@@ -1167,22 +1174,22 @@ module Hadoop
     end
 
     def zk_image
-      if @zk_image_id
-        return @@shared_base_object.describe_images(:image_id => @zk_image_id)['imagesSet']['item'][0]
+      if @zk_ami
+        return @@shared_base_object.describe_images(:ami => @zk_ami)['imagesSet']['item'][0]
       end
       get_image(@zk_image_label)
     end
     
     def regionserver_image
-      if @slave_image_id
-        return @@shared_base_object.describe_images(:image_id => @slave_image_id)['imagesSet']['item'][0]
+      if @slave_ami
+        return @@shared_base_object.describe_images(:ami => @slave_ami)['imagesSet']['item'][0]
       end
       get_image(@slave_image_label)
     end
     
     def master_image
-      if @master_image_id
-        return @@shared_base_object.describe_images(:image_id => @master_image_id)['imagesSet']['item'][0]
+      if @master_ami
+        return @@shared_base_object.describe_images(:ami => @master_ami)['imagesSet']['item'][0]
       end
       get_image(@master_image_label)
     end
