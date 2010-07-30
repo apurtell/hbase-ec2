@@ -264,7 +264,6 @@ module Hadoop
         #overrides options[:label] if present.
         puts "searching for AMI: '#{[options[:ami]]}'.."
         search_results = HCluster.search_images :ami => options[:ami], :output_fn => nil
-        puts "search results size: #{search_results.size}"
         if search_results && search_results.size > 0
           if search_results[0].name
             puts "#{options.ami} has label: #{search_results[0].name}"
@@ -1380,7 +1379,7 @@ module Hadoop
     
     def HCluster.until_ssh_able(instances,debug_level = @@debug_level)
       # do not return until every instance in the instances array is ssh-able.
-      debug_level = 1
+      debug_level = 0
       instances.each {|instance|
         connected = false
         until connected == true
