@@ -220,7 +220,7 @@ module Hadoop
       puts "   :debug_level  (@@debug_level)"
       puts "   :validate_images  (true)"
       puts "   :security_group_prefix (hcluster)"
-      puts "   :availability_zone (us-east-1a)"
+      puts "   :availability_zone (let AWS choose)"
       puts ""
       puts "HCluster.my_images shows a list of possible :label values."
     end
@@ -1053,7 +1053,7 @@ module Hadoop
                        "[setup:master:#{master.dnsName}","]\n")
     end
     
-    def setup_slaves(slaves, stdout_handler = HCluster::echo_stdout,s tderr_handler = HCluster::echo_stderr) 
+    def setup_slaves(slaves, stdout_handler = HCluster::echo_stdout,stderr_handler = HCluster::echo_stderr) 
       init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
       #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
       HCluster::until_ssh_able(slaves)
