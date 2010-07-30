@@ -647,6 +647,12 @@ if [ "$IS_MASTER" = "true" ]; then
   [ ! -e /mnt/hadoop/dfs/name ] && "$HADOOP_HOME"/bin/hadoop namenode -format
   "$HADOOP_HOME"/bin/hadoop-daemon.sh start namenode
   "$HADOOP_HOME"/bin/hadoop-daemon.sh start jobtracker
+
+  #<must be done after hadoop startup, and before hbase startup>
+  "$HADOOP_HOME"/bin/hadoop fs -mkdir /hbase
+  "$HADOOP_HOME"/bin/hadoop fs -chown hbase /hbase
+  #</must be done after hadoop startup, and before hbase startup>
+
   "$HBASE_HOME"/bin/hbase-daemon.sh start master
 else
     if [ "$IS_AUX" != "true" ]; then
