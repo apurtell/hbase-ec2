@@ -1,6 +1,6 @@
 options = {
   :label => 'hbase-0.20-tm-3-x86_64', 
-  :availability_zone => 'us-east-1c',
+  :availability_zone => 'us-east-1a',
   :num_regionservers => 3,
   :owner_id => '801535628028'
 }
