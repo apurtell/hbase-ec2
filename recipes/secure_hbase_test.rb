@@ -3,7 +3,6 @@ include Hadoop
 
 options = {
   :label => 'hbase-us-east-1-0.21-S-append-SNAPSHOT-x86_64', 
-  :availability_zone => 'us-east-1b',
   :num_regionservers => 3
 }
 cluster = TestDFSIO.new options
