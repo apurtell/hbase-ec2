@@ -1009,7 +1009,7 @@ module Hadoop
       @aux = do_launch(options,"aux",lambda{|instances|setup_aux(instances[0])})[0]
     end
     
-    def setup_zookeepers(zks)
+    def setup_zookeepers(zks, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
       #when zookeepers are ready, copy info over to them..
       #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
       HCluster::until_ssh_able(zks)
@@ -1029,7 +1029,7 @@ module Hadoop
       }
     end
 
-    def setup_master(master)
+    def setup_master(master, stdout_handler = HCluster::echo_stdout, stderr_handler = HCluster::echo_stderr) 
       #cluster's dnsName is same as master's.
       @dnsName = master.dnsName
       @master = master
@@ -1049,17 +1049,14 @@ module Hadoop
       HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
       # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
       HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-                         HCluster::echo_stdout,HCluster::echo_stderr,
-#                       HCluster::summarize_output,HCluster::summarize_output,
+                       stdout_handler,stderr_handler,
                        "[setup:master:#{master.dnsName}","]\n")
     end
     
-    def setup_slaves(slaves) 
+    def setup_slaves(slaves, stdout_handler = HCluster::echo_stdout,s tderr_handler = HCluster::echo_stderr) 
       init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
       #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
-      puts "setup_slaves: calling until_ssh_able()"
       HCluster::until_ssh_able(slaves)
-      puts "setup_slaves: done: slaves are sshable now."
       slaves.each {|slave|
         # <ssh key>
         HCluster::scp_to(slave.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
@@ -1070,8 +1067,7 @@ module Hadoop
         HCluster::scp_to(slave.dnsName,init_script,"/root/#{@@remote_init_script}")
         HCluster::ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
         HCluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-                         HCluster::echo_stdout,HCluster::echo_stderr,
-#                         HCluster::summarize_output,HCluster::summarize_output,
+                         stdout_handler,stderr_handler,
                          "[setup:rs:#{slave.dnsName}","]\n")
       }
     end
