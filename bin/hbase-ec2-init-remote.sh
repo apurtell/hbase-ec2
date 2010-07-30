@@ -1,8 +1,26 @@
 #!/usr/bin/env bash
 
+#
+# Copyright 2010 The Apache Software Foundation
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 set -x
 export JAVA_HOME=/usr/local/jdk1.6.0_20
-
 ln -s $JAVA_HOME /usr/local/jdk
 
 # Script that is run on each EC2 instance on boot. It is passed in the EC2 user
@@ -77,9 +95,7 @@ add_principal -pw $kadmpass hadoop/admin
 add_principal -pw had00p hclient
 quit
 EOF
-
 }
-
 
 # up file-max
 sysctl -w fs.file-max=32768
@@ -99,6 +115,7 @@ echo "$HOST_IP $HOSTNAME" >> /etc/hosts
 # note kdc hostname
 echo -n "$MASTER_HOST" > /etc/tm-kdc-hostname
 
+
 # Extra packages
 
 if [ "$EXTRA_PACKAGES" != "" ] ; then
@@ -112,7 +129,7 @@ fi
 # Security setup
 # all servers need krb5 libraries
 yum -y install krb5-libs jakarta-commons-daemon-jsvc
-ln -s /usr/bin/jsvc $HADOOP_HOME/bin
+[ -f $HADOOP_HOME/bin/jsvc ] || ln -s /usr/bin/jsvc $HADOOP_HOME/bin
 adduser hadoop
 groupadd supergroup
 adduser -G supergroup hbase
@@ -186,7 +203,7 @@ cat > /etc/krb5.conf <<EOF
 	krb4_get_tickets = false
 EOF
 
-# TODO: generate these from pwgen and pass throug
+# TODO: generate these from pwgen and pass through.
 KDC_MASTER_PASS="EiSei0Da"
 KDC_ADMIN_PASS="Chohpet6"
 
@@ -200,14 +217,19 @@ keytab="$HADOOP_HOME/conf/nn.keytab"
 add_client "hadoop/admin" $KDC_ADMIN_PASS $keytab $HOSTNAME
 chown hadoop:hadoop $keytab
 
+if [ "$IS_MASTER" = "true" ]; then
+  kadmin_setup $KDC_MASTER_PASS $KDC_ADMIN_PASS
+  cd /usr/local/hadoop-*; kinit -k -t conf/nn.keytab hadoop/$HOSTNAME
+fi
+
 # Ganglia
 
 if [ "$IS_MASTER" = "true" ]; then
   sed -i -e "s|\( *mcast_join *=.*\)|#\1|" \
-      -e "s|\( *bind *=.*\)|#\1|" \
-      -e "s|\( *mute *=.*\)|  mute = yes|" \
-      -e "s|\( *location *=.*\)|  location = \"master-node\"|" \
-      /etc/gmond.conf
+         -e "s|\( *bind *=.*\)|#\1|" \
+         -e "s|\( *mute *=.*\)|  mute = yes|" \
+         -e "s|\( *location *=.*\)|  location = \"master-node\"|" \
+         /etc/gmond.conf
   mkdir -p /mnt/ganglia/rrds
   chown -R ganglia:ganglia /mnt/ganglia/rrds
   rm -rf /var/lib/ganglia; cd /var/lib; ln -s /mnt/ganglia ganglia; cd
@@ -216,9 +238,9 @@ if [ "$IS_MASTER" = "true" ]; then
   apachectl start
 else
   sed -i -e "s|\( *mcast_join *=.*\)|#\1|" \
-      -e "s|\( *bind *=.*\)|#\1|" \
-      -e "s|\(udp_send_channel {\)|\1\n  host=$MASTER_HOST|" \
-      /etc/gmond.conf
+         -e "s|\( *bind *=.*\)|#\1|" \
+         -e "s|\(udp_send_channel {\)|\1\n  host=$MASTER_HOST|" \
+         /etc/gmond.conf
   service gmond start
 fi
 
@@ -413,6 +435,10 @@ cat > $HADOOP_HOME/conf/mapred-site.xml <<EOF
 </property>
 <property>
   <name>mapred.acls.enabled</name>
+  <value>true</value>
+</property>
+<property>
+  <name>mapreduce.cluster.job-authorization-enabled</name>
   <value>true</value>
 </property>
 <property>
@@ -627,12 +653,18 @@ if [ "$IS_MASTER" = "true" ]; then
   [ ! -e /mnt/hadoop/dfs/name ] && "$HADOOP_HOME"/bin/hadoop namenode -format
   "$HADOOP_HOME"/bin/hadoop-daemon.sh start namenode
   "$HADOOP_HOME"/bin/hadoop-daemon.sh start jobtracker
-  # "$HBASE_HOME"/bin/hbase-daemon.sh start master
+
+  #<must be done after hadoop startup, and before hbase startup>
+  "$HADOOP_HOME"/bin/hadoop fs -mkdir /hbase
+  "$HADOOP_HOME"/bin/hadoop fs -chown hbase /hbase
+  #</must be done after hadoop startup, and before hbase startup>
+
+  "$HBASE_HOME"/bin/hbase-daemon.sh start master
 else
     if [ "$IS_AUX" != "true" ]; then
 	"$HADOOP_HOME"/bin/hadoop-daemon.sh start datanode
-  # "$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
-	"$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
+        "$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
+        "$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
     fi
 fi
 
