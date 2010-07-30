@@ -647,12 +647,12 @@ if [ "$IS_MASTER" = "true" ]; then
   [ ! -e /mnt/hadoop/dfs/name ] && "$HADOOP_HOME"/bin/hadoop namenode -format
   "$HADOOP_HOME"/bin/hadoop-daemon.sh start namenode
   "$HADOOP_HOME"/bin/hadoop-daemon.sh start jobtracker
-  # "$HBASE_HOME"/bin/hbase-daemon.sh start master
+  "$HBASE_HOME"/bin/hbase-daemon.sh start master
 else
     if [ "$IS_AUX" != "true" ]; then
 	"$HADOOP_HOME"/bin/hadoop-daemon.sh start datanode
-  # "$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
-  "$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
+        "$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
+        "$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
     fi
 fi
 
