@@ -262,8 +262,8 @@ module Hadoop
 
       if options[:ami]
         #overrides options[:label] if present.
-        puts "searching for AMI: '#{options.ami}'.."
-        search_results = HCluster.search_images :ami => options.ami, :output_fn => nil
+        puts "searching for AMI: '#{[options[:ami]]}'.."
+        search_results = HCluster.search_images :ami => options[:ami], :output_fn => nil
         puts "search results size: #{search_results.size}"
         if search_results && search_results.size > 0
           if search_results[0].name
@@ -885,6 +885,11 @@ module Hadoop
     end
     
     def HCluster.do_launch(options,name="",on_boot = nil)
+      # @@shared_base_object requires :image_id instead of :ami; I prefer the latter.
+      options = {
+        :image_id => options[:ami]
+      }.merge(options)
+
       instances = @@shared_base_object.run_instances(options)
       watch(name,instances)
       if on_boot
@@ -1146,6 +1151,12 @@ module Hadoop
     #overrides parent: tries to find image using owner_id, which will be faster to iterate through (in .detect loop)
     # if not found, tries all images.
     def HCluster.describe_images(options,image_label = nil,search_all_visible_images = true)
+
+      # @@shared_base_object requires :image_id instead of :ami; I prefer the latter.
+      options = {
+        :image_id => options[:ami]
+      }.merge(options)
+
       if image_label
         options = {
           :owner_id => @@owner_id
@@ -1175,21 +1186,21 @@ module Hadoop
 
     def zk_image
       if @zk_ami
-        return @@shared_base_object.describe_images(:ami => @zk_ami)['imagesSet']['item'][0]
+        return @@shared_base_object.describe_images(:image_id => @zk_ami)['imagesSet']['item'][0]
       end
       get_image(@zk_image_label)
     end
     
     def regionserver_image
       if @slave_ami
-        return @@shared_base_object.describe_images(:ami => @slave_ami)['imagesSet']['item'][0]
+        return @@shared_base_object.describe_images(:image_id => @slave_ami)['imagesSet']['item'][0]
       end
       get_image(@slave_image_label)
     end
     
     def master_image
       if @master_ami
-        return @@shared_base_object.describe_images(:ami => @master_ami)['imagesSet']['item'][0]
+        return @@shared_base_object.describe_images(:image_id => @master_ami)['imagesSet']['item'][0]
       end
       get_image(@master_image_label)
     end
