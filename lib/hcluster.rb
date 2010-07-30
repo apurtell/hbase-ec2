@@ -1385,9 +1385,13 @@ module Hadoop
         connected = false
         until connected == true
           begin
-            puts "#{instance.dnsName} trying to ssh.."
+            if debug_level > 0
+              puts "#{instance.dnsName} trying to ssh.."
+            end
             ssh_to(instance.dnsName,"true",HCluster::consume_output,HCluster::consume_output,nil,nil)
-            puts "#{instance.dnsName} is sshable."
+            if debug_level > 0
+              puts "#{instance.dnsName} is sshable."
+            end
             connected = true
           rescue Net::SSH::AuthenticationFailed
             if debug_level > 0
