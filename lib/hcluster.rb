@@ -244,8 +244,7 @@ module Hadoop
         :slave_arch => "x86_64",
         :debug_level => @@debug_level,
         :validate_images => true,
-        :security_group_prefix => "hcluster",
-        :availability_zone => "us-east-1a",
+        :security_group_prefix => "hcluster"
       }.merge(options)
 
       
@@ -1012,6 +1011,11 @@ module Hadoop
       #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
       HCluster::until_ssh_able(zks)
       zks.each {|zk|
+
+        # if no zone specified by user, use the zone that AWS chose for the first
+        # instance launched in the cluster (the first zookeeper).
+        @zone = @zks[0].placement['availabilityZone'] if !@zone
+
         if (@debug_level > 0)
           puts "zk dnsname: #{zk.dnsName}"
         end
