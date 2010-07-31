@@ -98,23 +98,21 @@ EOF
 }
 
 # up file-max
-sysctl -w fs.file-max=32768
+sysctl -w fs.file-max=65535
 
 # up ulimits
-echo "root soft nofile 32768" >> /etc/security/limits.conf
-echo "root hard nofile 32768" >> /etc/security/limits.conf
-echo "hadoop soft nofile 32768" >> /etc/security/limits.conf
-echo "hadoop hard nofile 32768" >> /etc/security/limits.conf
+echo "root soft nofile 65535" >> /etc/security/limits.conf
+echo "root hard nofile 65535" >> /etc/security/limits.conf
+ulimit -n 65535
 
 # up epoll limits; ok if this fails, only valid for kernels 2.6.27+
-sysctl -w fs.epoll.max_user_instances=32768 > /dev/null 2>&1
+sysctl -w fs.epoll.max_user_instances=65535 > /dev/null 2>&1
 
 [ ! -f /etc/hosts ] &&  echo "127.0.0.1 localhost" > /etc/hosts
 echo "$HOST_IP $HOSTNAME" >> /etc/hosts
 
 # note kdc hostname
 echo -n "$MASTER_HOST" > /etc/tm-kdc-hostname
-
 
 # Extra packages
 
@@ -473,7 +471,7 @@ export HADOOP_OPTS="$HADOOP_OPTS -XX:+UseCompressedOops"
 EOF
 # Update classpath to include HBase jars and config
 cat >> $HADOOP_HOME/conf/hadoop-env.sh <<EOF
-export HADOOP_CLASSPATH="$HBASE_HOME/hbase-${HBASE_VERSION}.jar:$HBASE_HOME/lib/AgileJSON-2009-03-30.jar:$HBASE_HOME/lib/json.jar:$HBASE_HOME/lib/zookeeper-3.3.0.jar:$HBASE_HOME/conf"
+HADOOP_CLASSPATH="$HBASE_HOME/hbase-${HBASE_VERSION}.jar:$HBASE_HOME/lib/zookeeper-3.3.1.jar:$HBASE_HOME/conf"
 EOF
 # Configure Hadoop for Ganglia
 cat > $HADOOP_HOME/conf/hadoop-metrics.properties <<EOF
@@ -528,20 +526,8 @@ cat > $HBASE_HOME/conf/hbase-site.xml <<EOF
   <value>100</value>
 </property>
 <property>
-  <name>hfile.block.cache.size</name>
-  <value>0.3</value>
-</property>
-<property>
-  <name>hbase.regionserver.global.memstore.upperLimit</name>
-  <value>0.3</value>
-</property>
-<property>
-  <name>hbase.regionserver.global.memstore.lowerLimit</name>
-  <value>0.25</value>
-</property>
-<property>
   <name>hbase.hregion.memstore.block.multiplier</name>
-  <value>4</value>
+  <value>3</value>
 </property>
 <property>
   <name>hbase.hstore.blockingStoreFiles</name>
@@ -553,7 +539,7 @@ cat > $HBASE_HOME/conf/hbase-site.xml <<EOF
 </property>
 <property>
   <name>dfs.support.append</name>
-  <value>false</value>
+  <value>true</value>
 </property>
 <property>
   <name>dfs.client.block.write.retries</name>
@@ -623,10 +609,8 @@ ln -s $HADOOP_HOME/conf/hdfs-site.xml $HBASE_HOME/conf/
 ln -s $HADOOP_HOME/conf/mapred-site.xml $HBASE_HOME/conf/
 # Override JVM options
 cat >> $HBASE_HOME/conf/hbase-env.sh <<EOF
-export JAVA_HOME=/usr/local/jdk
-export HBASE_LOG_DIR=/mnt/hbase/logs
-export HBASE_MASTER_OPTS="-Xmx1000m -XX:+UseCompressedOops -XX:+UseConcMarkSweepGC -XX:+DoEscapeAnalysis -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:/mnt/hbase/logs/hbase-master-gc.log"
-export HBASE_REGIONSERVER_OPTS="-Xmx4000m -XX:+UseCompressedOops -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=88 -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+DoEscapeAnalysis -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCDateStamps -Xloggc:/mnt/hbase/logs/hbase-regionserver-gc.log"
+export HBASE_MASTER_OPTS="-Xmx1000m -XX:+UseConcMarkSweepGC -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-master-gc.log"
+export HBASE_REGIONSERVER_OPTS="-Xmx2000m -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=88 -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-regionserver-gc.log"
 EOF
 # Configure log4j
 sed -i -e 's/hadoop.hbase=DEBUG/hadoop.hbase=INFO/g' \
@@ -659,11 +643,9 @@ if [ "$IS_MASTER" = "true" ]; then
   "$HADOOP_HOME"/bin/hadoop fs -chown hbase /hbase
   #</must be done after hadoop startup, and before hbase startup>
 
-  "$HBASE_HOME"/bin/hbase-daemon.sh start master
 else
     if [ "$IS_AUX" != "true" ]; then
 	"$HADOOP_HOME"/bin/hadoop-daemon.sh start datanode
-        "$HBASE_HOME"/bin/hbase-daemon.sh start regionserver
         "$HADOOP_HOME"/bin/hadoop-daemon.sh start tasktracker
     fi
 fi
