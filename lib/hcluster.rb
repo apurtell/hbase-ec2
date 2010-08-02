@@ -60,9 +60,10 @@ module Hadoop
       puts ""
       puts "Himage.new"
       puts "  options: (default)"
-      puts "   :label  (nil) (see HImage.list for a list of labels)"
+      puts "   :s3"
+      puts "   :hadoop"
+      puts "   :hbase"
       puts ""
-      puts "Himage.list shows a list of possible :label values."
     end
 
     def initialize(options = {})
@@ -78,7 +79,11 @@ module Hadoop
         raise "HBase tarfile: #{options[:hbase]} does not exist or is not readable" unless File.readable? options[:hbase]
         raise "Hadoop tarfile: #{options[:hadoop]} does not exist or is not readable" unless File.readable? options[:hadoop]
 
-        for file_to_upload in (options[:hbase],options[:hadoop])
+        @hadoop_url = "http://#{options[:s3]}.s3.amazon.aws.com/#{options[:hadoop]}"
+        @hbase_url = "http://#{options[:s3]}.s3.amazon.aws.com/#{options[:hbase]}"
+
+        threads = []
+        for file_to_upload in [options[:hbase],options[:hadoop]]
           threads << Thread.new(file_to_upload) do |upload|
             upload options[:s3], upload
           end
@@ -87,44 +92,14 @@ module Hadoop
           begin
             thr.join
           rescue IOError
-            # ignoring "IOError: stream closed"
+            # (ignoring "IOError: stream closed")
+            # ...
           end
         }
-
-
-        puts "uploading '#{options[:hadoop]}'.."
-        upload options[:s3],options[:hadoop]
-        @hbase_url  = "http://#{options[:s3]}.s3.amazon.aws.com/{options[:hbase]}"
-        puts "done."
-
-        puts "uploading '#{options[:hbase]}'.."
-        upload options[:s3],options[:hbase]
-        @hadoop_url  = "http://#{options[:s3]}.s3.amazon.aws.com/{options[:hadoop]}"
-        puts "done."
-
       else
         #not enough options: show usage and exit.
         initialize_himage_usage
       end
-    end
-
-    def threaded_upload
-      uploads = %w( /Users/ekoontz/hadoop/README.txt /Users/ekoontz/hadoop/LICENSE.txt )
-      threads = []
-      for file_to_upload in uploads
-        threads << Thread.new(file_to_upload) do |upload|
-         puts "Uploading: #{file_to_upload}\n"
-          upload "ekoontz-tarballs",upload
-          puts "done: #{file_to_upload}"
-        end
-      end
-      threads.each{|thr| 
-        begin
-          thr.join
-        rescue IOError
-          # ignoring "IOError: stream closed"
-        end
-      }
     end
 
     def init2
