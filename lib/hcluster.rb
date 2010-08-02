@@ -83,7 +83,7 @@ module Hadoop
         @tar_s3 = options[:tar_s3]
         @ami_s3 = options[:ami_s3]
         @hadoop_url = "http://#{@tar_s3}.s3.amazonaws.com/#{@hadoop_filename}"
-        @hbase_url = "http://#{@ami_s3}.s3.amazonaws.com/#{@hbase_filename}"
+        @hbase_url = "http://#{@tar_s3}.s3.amazonaws.com/#{@hbase_filename}"
       else
         #not enough options: show usage and exit.
         initialize_himage_usage
@@ -110,7 +110,7 @@ module Hadoop
       }
     end
 
-    def create_image(arch = "x86_64")
+    def create_image(arch = "x86_64",debug = "false")
       #<tmp>
       base_ami_image = 'ami-f61dfd9f'
       #</tmp>
@@ -155,17 +155,13 @@ module Hadoop
       java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
       ami_bucket = @ami_s3
 
-      options = {
-        :debug => true
-      }
-
       image_creator_hostname = @image_creator.dnsName
-      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{@hbase_filename} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{@tar_s3} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
+      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{@hbase_filename} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{@ami_s3} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
       puts "sh: #{sh}"
 
       HCluster::ssh_to(image_creator_hostname,sh,
-                       HCluster.image_output_handler(options[:debug]),
-                       HCluster.image_output_handler(options[:debug]))
+                       HCluster.image_output_handler(debug),
+                       HCluster.image_output_handler(debug))
       puts(" .. done.")
 
       # Register image
@@ -181,7 +177,7 @@ module Hadoop
                                                                :description => "HBase Cluster Image: HBase Version: #{hbase_version}; Hadoop Version: #{hadoop_version}"
                                                              })
       puts "image registered."
-      if (!(options[:debug] == true))
+      if (!(debug == true))
         puts "shutting down image-builder #{@image_creator.instanceId}"
         @@shared_base_object.terminate_instances({
                                                    :instance_id => @image_creator.instanceId
@@ -189,13 +185,8 @@ module Hadoop
       else
         puts "not shutting down image creator: #{@image_creator.dnsName}"
       end
-      puts "referring to registered image: #{registered_image.to_yaml}"
       registered_image.imageId
-
     end
-
-
-
 
     def Himage.find_owned_image(options)
       options = {
