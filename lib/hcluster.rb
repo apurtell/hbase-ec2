@@ -45,9 +45,9 @@ module Hadoop
       @@s3
     end
 
-    def Himage::upload_tar(label = "test", bucket = "ekoontz-tarballs",file="/Users/ekoontz/s3/sample.tar.gz")
+    def upload(bucket,file)
       filename = File.basename(file)
-      puts "storing '#{filename}' in s3 bucket '#{bucket}'.."
+      puts "storing '#{filename}' in s3 bucket '#{bucket}'..\n"
       @@s3.store filename, open(file), bucket,:access => :public_read
       puts "done."
     end
@@ -72,24 +72,98 @@ module Hadoop
         :owner_id => @@owner_id
       }.merge(options)
 
-      if options[:label]
-        image_label = options[:label]
-        owned_image = Himage::find_owned_image(options)
-        if owned_image
-          @image = owned_image
-          owned_image
-        else
-          retval = HCluster.create_image(options)
-          puts "image id (retval of HCluster.create_image(#{options.to_yaml})): #{retval}"
-          @image = Himage::find_owned_image(options)
+
+      if options[:hbase] and options[:hadoop] and options[:s3]
+        # verify existence of these two files.
+        raise "HBase tarfile: #{options[:hbase]} does not exist or is not readable" unless File.readable? options[:hbase]
+        raise "Hadoop tarfile: #{options[:hadoop]} does not exist or is not readable" unless File.readable? options[:hadoop]
+
+        for file_to_upload in (options[:hbase],options[:hadoop])
+          threads << Thread.new(file_to_upload) do |upload|
+            upload options[:s3], upload
+          end
         end
-        @label = @image.name
-        @image_id = @image.imageId
-        @image
+        threads.each { |thr| 
+          begin
+            thr.join
+          rescue IOError
+            # ignoring "IOError: stream closed"
+          end
+        }
+
+
+        puts "uploading '#{options[:hadoop]}'.."
+        upload options[:s3],options[:hadoop]
+        @hbase_url  = "http://#{options[:s3]}.s3.amazon.aws.com/{options[:hbase]}"
+        puts "done."
+
+        puts "uploading '#{options[:hbase]}'.."
+        upload options[:s3],options[:hbase]
+        @hadoop_url  = "http://#{options[:s3]}.s3.amazon.aws.com/{options[:hadoop]}"
+        puts "done."
+
       else
         #not enough options: show usage and exit.
         initialize_himage_usage
       end
+    end
+
+    def threaded_upload
+      uploads = %w( /Users/ekoontz/hadoop/README.txt /Users/ekoontz/hadoop/LICENSE.txt )
+      threads = []
+      for file_to_upload in uploads
+        threads << Thread.new(file_to_upload) do |upload|
+         puts "Uploading: #{file_to_upload}\n"
+          upload "ekoontz-tarballs",upload
+          puts "done: #{file_to_upload}"
+        end
+      end
+      threads.each{|thr| 
+        begin
+          thr.join
+        rescue IOError
+          # ignoring "IOError: stream closed"
+        end
+      }
+    end
+
+    def init2
+      #<tmp>
+      base_image_image = 'ami-7ea24a17'
+      @hadoop_url  = "http://ekoontz-tarballs.s3.amazon.aws.com/hadoop-0.20-tm-3.tar.gz"
+      @hbase_url  = "http://ekoontz-tarballs.s3.amazon.aws.com/hbase-0.20-tm-3.tar.gz"
+      #</tmp>
+
+      puts "Creating and registering image: #{image_label}"
+      puts "Starting a AMI with ID: #{base_ami_image}."
+      
+      launch = do_launch({
+                           :ami => base_ami_image,
+                           :key_name => "root",
+                           :instance_type => "m1.large"
+                         },"image-creator")
+      
+      if (launch && launch[0])
+        image_creator = launch[0]
+      else 
+        raise "Could not launch image creator."
+      end
+      
+      image_creator_hostname = image_creator.dnsName
+      puts "Started image creator: #{image_creator_hostname}"
+      
+      puts "Copying scripts."
+      until_ssh_able([image_creator])
+
+      scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
+      scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
+      scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
+      
+      # Copy private key and certificate (for bundling image)
+      scp_to(image_creator_hostname, EC2_ROOT_SSH_KEY, "/mnt")
+      scp_to(image_creator_hostname, EC2_CERT, "/mnt")
+
+
     end
 
     def Himage.find_owned_image(options)
