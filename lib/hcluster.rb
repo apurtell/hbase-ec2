@@ -130,9 +130,6 @@ module Hadoop
       puts "Started image creator: #{image_creator_hostname}"
       
       HCluster::until_ssh_able([@image_creator])
-    end
-
-    def init3
       image_creator_hostname = @image_creator.dnsName
       puts "Copying scripts."
       HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
@@ -144,7 +141,7 @@ module Hadoop
       HCluster::scp_to(image_creator_hostname, EC2_CERT, "/mnt")
     end
 
-    def init4
+    def init3
       #<tmp>
       hbase_version = "0.20-tm-3"
       hadoop_version = "0.20-tm-3"
@@ -153,7 +150,7 @@ module Hadoop
       arch = "x86_64"
       lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-0.20-tm-2.tar.gz"
       java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
-      s3_bucket = "ekoontz-tarballs"
+      ami_bucket = "ekoontz-amis"
       image_label = "hbase-0.20-tm-3"
       options = {
         :debug => true
@@ -161,7 +158,7 @@ module Hadoop
       #</tmp>
 
       image_creator_hostname = @image_creator.dnsName
-      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{s3_bucket} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
+      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{ami_bucket} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
       puts "sh: #{sh}"
 
       HCluster::ssh_to(image_creator_hostname,sh,
@@ -182,6 +179,16 @@ module Hadoop
                                                                :description => "HBase Cluster Image: HBase Version: #{hbase_version}; Hadoop Version: #{hadoop_version}"
                                                              })
       puts "image registered."
+      if (!(options[:debug] == true))
+        puts "shutting down image-builder #{@image_creator.instanceId}"
+        @@shared_base_object.terminate_instances({
+                                                   :instance_id => @image_creator.instanceId
+                                                 })
+      else
+        puts "not shutting down image creator: #{@image_creator.dnsName}"
+      end
+      puts "referring to registered image: #{registered_image.to_yaml}"
+      registered_image.imageId
 
     end
 
