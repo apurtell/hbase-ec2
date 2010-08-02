@@ -77,8 +77,10 @@ module Hadoop
         # verify existence of these two files.
         raise "HBase tarfile: #{options[:hbase]} does not exist or is not readable" unless File.readable? options[:hbase]
         raise "Hadoop tarfile: #{options[:hadoop]} does not exist or is not readable" unless File.readable? options[:hadoop]
-        @hadoop_url = "http://#{options[:s3]}.s3.amazonaws.com/#{File.basename(options[:hadoop])}"
-        @hbase_url = "http://#{options[:s3]}.s3.amazonaws.com/#{File.basename(options[:hbase])}"
+        @hadoop_filename = File.basename(options[:hadoop])
+        @hbase_filename = File.basename(options[:hbase])
+        @hadoop_url = "http://#{options[:s3]}.s3.amazonaws.com/#{@hadoop_filename}"
+        @hbase_url = "http://#{options[:s3]}.s3.amazonaws.com/#{@hbase_filename}"
       else
         #not enough options: show usage and exit.
         initialize_himage_usage
@@ -105,11 +107,12 @@ module Hadoop
       }
     end
 
-    def init2
+    def create_image(arch = "x86_64")
       #<tmp>
       base_ami_image = 'ami-f61dfd9f'
-      image_label = "hbase-0.20-tm-3"
       #</tmp>
+
+      image_label = "hbase-#{HCluster.label_to_hbase_version(File.basename(@hbase_filename))}"
 
       puts "Creating and registering image: #{image_label}"
       puts "Starting a AMI with ID: #{base_ami_image}."
@@ -139,26 +142,19 @@ module Hadoop
       # Copy private key and certificate (for bundling image)
       HCluster::scp_to(image_creator_hostname, EC2_ROOT_SSH_KEY, "/mnt")
       HCluster::scp_to(image_creator_hostname, EC2_CERT, "/mnt")
-    end
 
-    def init3
-      #<tmp>
-      hbase_version = "0.20-tm-3"
-      hadoop_version = "0.20-tm-3"
-      hbase_file = "hbase-0.20-tm-3.tar.gz"
-      hadoop_file = "hadoop-0.20-tm-3.tar.gz"
-      arch = "x86_64"
+      hbase_version = HCluster.label_to_hbase_version(File.basename(@hbase_filename))
+      hadoop_version = HCluster.label_to_hbase_version(File.basename(@hadoop_filename))
       lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-0.20-tm-2.tar.gz"
       java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
-      ami_bucket = "ekoontz-amis"
-      image_label = "hbase-0.20-tm-3"
+      ami_bucket = @ami_s3
+
       options = {
         :debug => true
       }
-      #</tmp>
 
       image_creator_hostname = @image_creator.dnsName
-      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{ami_bucket} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
+      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{@hbase_filename} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{ami_s3} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
       puts "sh: #{sh}"
 
       HCluster::ssh_to(image_creator_hostname,sh,
@@ -167,7 +163,7 @@ module Hadoop
       puts(" .. done.")
 
       # Register image
-      image_location = "#{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
+      image_location = "#{ami_s3}/hbase-#{hbase_version}-#{arch}.manifest.xml"
 
       # FIXME: notify maintainers:
       # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not
@@ -1565,7 +1561,7 @@ module Hadoop
 
     def HCluster.label_to_hbase_version(label)
       begin
-        /hbase-([0-9+]\.[0-9]+\.[0-9]+)/.match(label)[1]
+        /hbase-([0-9]+\.[0-9]+((\.)([0-9]+)|(\-tm-[0-9]+)))/.match(label)[1]
       rescue NoMethodError
         "could not convert label: #{label} to an hbase version."
       end
