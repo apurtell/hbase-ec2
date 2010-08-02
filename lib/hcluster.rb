@@ -59,10 +59,11 @@ module Hadoop
     def initialize_himage_usage
       puts ""
       puts "Himage.new"
-      puts "  options: (default)"
-      puts "   :s3"
-      puts "   :hadoop"
-      puts "   :hbase"
+      puts "  options: (description) (default, if any)"
+      puts "   :tar_s3 (name of S3 bucket where tarfiles should be stored)"
+      puts "   :ami_s3 (name of S3 bucket where AMIs should be stored)"
+      puts "   :hadoop (full path to hadoop tar.gz archive)"
+      puts "   :hbase  (full path to hbase tar.gz archive)"
       puts ""
     end
 
@@ -73,14 +74,14 @@ module Hadoop
         :owner_id => @@owner_id
       }.merge(options)
 
-      if options[:hbase] and options[:hadoop] and options[:s3]
+      if options[:hbase] and options[:hadoop] and options[:tar_s3] and options[:ami_s3]
         # verify existence of these two files.
         raise "HBase tarfile: #{options[:hbase]} does not exist or is not readable" unless File.readable? options[:hbase]
         raise "Hadoop tarfile: #{options[:hadoop]} does not exist or is not readable" unless File.readable? options[:hadoop]
         @hadoop_filename = File.basename(options[:hadoop])
         @hbase_filename = File.basename(options[:hbase])
-        @hadoop_url = "http://#{options[:s3]}.s3.amazonaws.com/#{@hadoop_filename}"
-        @hbase_url = "http://#{options[:s3]}.s3.amazonaws.com/#{@hbase_filename}"
+        @hadoop_url = "http://#{options[:tar_s3]}.s3.amazonaws.com/#{@hadoop_filename}"
+        @hbase_url = "http://#{options[:tar_s3]}.s3.amazonaws.com/#{@hbase_filename}"
       else
         #not enough options: show usage and exit.
         initialize_himage_usage
@@ -91,7 +92,7 @@ module Hadoop
       threads = []
       for file_to_upload in [options[:hbase],options[:hadoop]]
         threads << Thread.new(file_to_upload) do |upload|
-          upload options[:s3], upload
+          upload options[:tar_s3], upload
         end
       end
       threads.each { |thr|
@@ -111,6 +112,9 @@ module Hadoop
       #<tmp>
       base_ami_image = 'ami-f61dfd9f'
       #</tmp>
+
+      #FIXME: check for existence of tarfile URLs: if they don't exist, either raise exception or call upload_tars().
+      #..
 
       image_label = "hbase-#{HCluster.label_to_hbase_version(File.basename(@hbase_filename))}"
 
@@ -154,7 +158,7 @@ module Hadoop
       }
 
       image_creator_hostname = @image_creator.dnsName
-      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{@hbase_filename} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{ami_s3} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
+      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{@hbase_filename} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{tar_s3} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
       puts "sh: #{sh}"
 
       HCluster::ssh_to(image_creator_hostname,sh,
