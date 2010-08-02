@@ -80,8 +80,10 @@ module Hadoop
         raise "Hadoop tarfile: #{options[:hadoop]} does not exist or is not readable" unless File.readable? options[:hadoop]
         @hadoop_filename = File.basename(options[:hadoop])
         @hbase_filename = File.basename(options[:hbase])
-        @hadoop_url = "http://#{options[:tar_s3]}.s3.amazonaws.com/#{@hadoop_filename}"
-        @hbase_url = "http://#{options[:tar_s3]}.s3.amazonaws.com/#{@hbase_filename}"
+        @tar_s3 = options[:tar_s3]
+        @ami_s3 = options[:ami_s3]
+        @hadoop_url = "http://#{@tar_s3}.s3.amazonaws.com/#{@hadoop_filename}"
+        @hbase_url = "http://#{@ami_s3}.s3.amazonaws.com/#{@hbase_filename}"
       else
         #not enough options: show usage and exit.
         initialize_himage_usage
@@ -158,7 +160,7 @@ module Hadoop
       }
 
       image_creator_hostname = @image_creator.dnsName
-      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{@hbase_filename} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{tar_s3} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
+      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{@hbase_filename} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{@tar_s3} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
       puts "sh: #{sh}"
 
       HCluster::ssh_to(image_creator_hostname,sh,
@@ -167,7 +169,7 @@ module Hadoop
       puts(" .. done.")
 
       # Register image
-      image_location = "#{ami_s3}/hbase-#{hbase_version}-#{arch}.manifest.xml"
+      image_location = "#{@ami_s3}/hbase-#{hbase_version}-#{arch}.manifest.xml"
 
       # FIXME: notify maintainers:
       # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not
@@ -1565,9 +1567,9 @@ module Hadoop
 
     def HCluster.label_to_hbase_version(label)
       begin
-        /hbase-([0-9]+\.[0-9]+((\.)([0-9]+)|(\-tm-[0-9]+)))/.match(label)[1]
+        /(hbase|hadoop)-([0-9]+\.[0-9]+((\.)([0-9]+)|(\-tm-[0-9]+)))/.match(label)[2]
       rescue NoMethodError
-        "could not convert label: #{label} to an hbase version."
+        "could not convert label: '#{label}' to an hbase version."
       end
     end
   end
