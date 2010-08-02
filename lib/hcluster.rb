@@ -417,10 +417,10 @@ module Hadoop
                 :slave_image_label => desc_images[0].name
               }.merge(options)
             else
-              raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with create_image()."
+              raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with Himage.create_image()."
             end
           else
-            raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with create_image()."
+            raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with Himage.create_image()."
           end
         end
 
