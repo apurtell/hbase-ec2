@@ -73,73 +73,120 @@ module Hadoop
         :owner_id => @@owner_id
       }.merge(options)
 
-
       if options[:hbase] and options[:hadoop] and options[:s3]
         # verify existence of these two files.
         raise "HBase tarfile: #{options[:hbase]} does not exist or is not readable" unless File.readable? options[:hbase]
         raise "Hadoop tarfile: #{options[:hadoop]} does not exist or is not readable" unless File.readable? options[:hadoop]
-
-        @hadoop_url = "http://#{options[:s3]}.s3.amazon.aws.com/#{options[:hadoop]}"
-        @hbase_url = "http://#{options[:s3]}.s3.amazon.aws.com/#{options[:hbase]}"
-
-        threads = []
-        for file_to_upload in [options[:hbase],options[:hadoop]]
-          threads << Thread.new(file_to_upload) do |upload|
-            upload options[:s3], upload
-          end
-        end
-        threads.each { |thr| 
-          begin
-            thr.join
-          rescue IOError
-            # (ignoring "IOError: stream closed")
-            # ...
-          end
-        }
+        @hadoop_url = "http://#{options[:s3]}.s3.amazonaws.com/#{File.basename(options[:hadoop])}"
+        @hbase_url = "http://#{options[:s3]}.s3.amazonaws.com/#{File.basename(options[:hbase])}"
       else
         #not enough options: show usage and exit.
         initialize_himage_usage
       end
     end
 
+    def upload_tars(options)
+      threads = []
+      for file_to_upload in [options[:hbase],options[:hadoop]]
+        threads << Thread.new(file_to_upload) do |upload|
+          upload options[:s3], upload
+        end
+      end
+      threads.each { |thr|
+        begin
+          thr.join
+        rescue IOError
+          # (ignoring "IOError: stream closed")
+          # ...
+        rescue NoMethodError
+          # (ignoring "NoMethodError: private method `readline' called for nil:NilClass")
+          # ...
+        end
+      }
+    end
+
     def init2
       #<tmp>
-      base_image_image = 'ami-7ea24a17'
-      @hadoop_url  = "http://ekoontz-tarballs.s3.amazon.aws.com/hadoop-0.20-tm-3.tar.gz"
-      @hbase_url  = "http://ekoontz-tarballs.s3.amazon.aws.com/hbase-0.20-tm-3.tar.gz"
+      base_ami_image = 'ami-f61dfd9f'
+      image_label = "hbase-0.20-tm-3"
       #</tmp>
 
       puts "Creating and registering image: #{image_label}"
       puts "Starting a AMI with ID: #{base_ami_image}."
       
-      launch = do_launch({
-                           :ami => base_ami_image,
-                           :key_name => "root",
-                           :instance_type => "m1.large"
-                         },"image-creator")
+      launch = HCluster::do_launch({
+                                     :ami => base_ami_image,
+                                     :key_name => "root",
+                                     :instance_type => "m1.large"
+                                   },"image-creator")
       
       if (launch && launch[0])
-        image_creator = launch[0]
+        @image_creator = launch[0]
       else 
         raise "Could not launch image creator."
       end
       
-      image_creator_hostname = image_creator.dnsName
+      image_creator_hostname = @image_creator.dnsName
       puts "Started image creator: #{image_creator_hostname}"
       
-      puts "Copying scripts."
-      until_ssh_able([image_creator])
+      HCluster::until_ssh_able([@image_creator])
+    end
 
-      scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
-      scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
-      scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
+    def init3
+      image_creator_hostname = @image_creator.dnsName
+      puts "Copying scripts."
+      HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
+      HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
+      HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
       
       # Copy private key and certificate (for bundling image)
-      scp_to(image_creator_hostname, EC2_ROOT_SSH_KEY, "/mnt")
-      scp_to(image_creator_hostname, EC2_CERT, "/mnt")
+      HCluster::scp_to(image_creator_hostname, EC2_ROOT_SSH_KEY, "/mnt")
+      HCluster::scp_to(image_creator_hostname, EC2_CERT, "/mnt")
+    end
 
+    def init4
+      #<tmp>
+      hbase_version = "0.20-tm-3"
+      hadoop_version = "0.20-tm-3"
+      hbase_file = "hbase-0.20-tm-3.tar.gz"
+      hadoop_file = "hadoop-0.20-tm-3.tar.gz"
+      arch = "x86_64"
+      lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-0.20-tm-2.tar.gz"
+      java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
+      s3_bucket = "ekoontz-tarballs"
+      image_label = "hbase-0.20-tm-3"
+      options = {
+        :debug => true
+      }
+      #</tmp>
+
+      image_creator_hostname = @image_creator.dnsName
+      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{s3_bucket} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
+      puts "sh: #{sh}"
+
+      HCluster::ssh_to(image_creator_hostname,sh,
+                       HCluster.image_output_handler(options[:debug]),
+                       HCluster.image_output_handler(options[:debug]))
+      puts(" .. done.")
+
+      # Register image
+      image_location = "#{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
+
+      # FIXME: notify maintainers:
+      # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not
+      # mention :name param (only :image_location).
+      puts "registering image label: #{image_label} at manifest location: #{image_location}"
+      registered_image = @@shared_base_object.register_image({
+                                                               :name => image_label,
+                                                               :image_location => image_location,
+                                                               :description => "HBase Cluster Image: HBase Version: #{hbase_version}; Hadoop Version: #{hadoop_version}"
+                                                             })
+      puts "image registered."
 
     end
+
+
+
 
     def Himage.find_owned_image(options)
       options = {
