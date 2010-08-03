@@ -19,9 +19,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-set -x
-export JAVA_HOME=/usr/local/jdk1.6.0_20
-ln -s $JAVA_HOME /usr/local/jdk
 
 # Script that is run on each EC2 instance on boot. It is passed in the EC2 user
 # data, so should not exceed 16K in size.
@@ -37,6 +34,11 @@ MASTER_HOST=$1
 ZOOKEEPER_QUORUM=$2
 NUM_SLAVES=$3
 EXTRA_PACKAGES=$4
+LOG_SETTING=$5
+
+export JAVA_HOME=/usr/local/jdk1.6.0_20
+ln -s $JAVA_HOME /usr/local/jdk
+
 SECURITY_GROUPS=`wget -q -O - http://169.254.169.254/latest/meta-data/security-groups`
 IS_MASTER=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-master$"); if (a) print "true"; else print "false"; }'`
 IS_AUX=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-aux$"); if (a) print "true"; else print "false"; }'`
@@ -607,7 +609,7 @@ export HBASE_MASTER_OPTS="-Xmx1000m -XX:+UseConcMarkSweepGC -XX:NewSize=128m -XX
 export HBASE_REGIONSERVER_OPTS="-Xmx2000m -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=88 -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-regionserver-gc.log"
 EOF
 # Configure log4j
-sed -i -e 's/hadoop.hbase=DEBUG/hadoop.hbase=INFO/g' \
+sed -i -e "s/hadoop.hbase=DEBUG/hadoop.hbase=$5/g" \
     $HBASE_HOME/conf/log4j.properties
 # Configure HBase for Ganglia
 cat > $HBASE_HOME/conf/hadoop-metrics.properties <<EOF
