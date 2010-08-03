@@ -928,8 +928,14 @@ module Hadoop
       
     end
     
-    def launch_zookeepers
-      options = {}
+    def launch_zookeepers(options = {})
+      options = {
+        :stdout_handler => HCluster::echo_stdout,
+        :stderr_handler => HCluster::echo_stderr,
+        :hbase_debug_level => 'DEBUG',
+        :extra_packages => ""
+      }.merge(options)
+
       options[:ami] = zk_image['imageId']
       options[:min_count] = @num_zookeepers
       options[:max_count] = @num_zookeepers
