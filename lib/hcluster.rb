@@ -74,7 +74,7 @@ module Hadoop
         :owner_id => @@owner_id
       }.merge(options)
 
-      if options[:hbase] and options[:hadoop] and options[:tar_s3] and options[:ami_s3]
+      if options[:hbase] && options[:hadoop] && options[:tar_s3] && options[:ami_s3]
         # verify existence of these two files.
         raise "HBase tarfile: #{options[:hbase]} does not exist or is not readable" unless File.readable? options[:hbase]
         raise "Hadoop tarfile: #{options[:hadoop]} does not exist or is not readable" unless File.readable? options[:hadoop]
