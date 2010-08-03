@@ -322,7 +322,7 @@ cat > $HADOOP_HOME/conf/hdfs-site.xml <<EOF
 </property>
 <property>
   <name>dfs.support.append</name>
-  <value>false</value>
+  <value>true</value>
 </property>
 <property>
   <name>dfs.datanode.handler.count</name>
