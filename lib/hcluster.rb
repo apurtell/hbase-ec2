@@ -1292,7 +1292,16 @@ module Hadoop
       
       HCluster.ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
     end
-    
+
+    def ssh_to(host,
+               command=nil,
+               stdout_line_reader = HCluster.echo_stdout,
+               stderr_line_reader = HCluster.echo_stderr,
+               begin_output = nil,
+               end_output = nil)
+      HCluster.ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
+    end
+
     def HCluster.scp_to(host,local_path,remote_path)
       #http://net-ssh.rubyforge.org/scp/v1/api/classes/Net/SCP.html#M000005
       # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
