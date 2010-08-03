@@ -26,6 +26,13 @@ ln -s $JAVA_HOME /usr/local/jdk
 # Script that is run on each EC2 instance on boot. It is passed in the EC2 user
 # data, so should not exceed 16K in size.
 
+#FIXME: replace this shell script with a more
+# declarative statement of what we want
+# the just-started zookeeper's setup to look like,
+# using Whirr, Chef, Puppet, or some combination thereof.
+
+set -x
+
 MASTER_HOST=$1
 ZOOKEEPER_QUORUM=$2
 NUM_SLAVES=$3
