@@ -78,6 +78,8 @@ module Hadoop
         # verify existence of these two files.
         raise "HBase tarfile: #{options[:hbase]} does not exist or is not readable" unless File.readable? options[:hbase]
         raise "Hadoop tarfile: #{options[:hadoop]} does not exist or is not readable" unless File.readable? options[:hadoop]
+        @hadoop = options[:hadoop]
+        @hbase = options[:hbase]
         @hadoop_filename = File.basename(options[:hadoop])
         @hbase_filename = File.basename(options[:hbase])
         @tar_s3 = options[:tar_s3]
@@ -87,14 +89,15 @@ module Hadoop
       else
         #not enough options: show usage and exit.
         initialize_himage_usage
+        raise HImageError, "required information missing: see usage information above."
       end
     end
 
-    def upload_tars(options)
+    def upload_tars
       threads = []
-      for file_to_upload in [options[:hbase],options[:hadoop]]
+      for file_to_upload in [@hbase,@hadoop]
         threads << Thread.new(file_to_upload) do |upload|
-          upload options[:tar_s3], upload
+          upload @tar_s3, upload
         end
       end
       threads.each { |thr|
@@ -263,6 +266,9 @@ module Hadoop
   EC2_CERT = ENV['EC2_CERT'] ? "#{ENV['EC2_CERT']}" : "#{ENV['HOME']}/.ec2/cert.pem"
     
   class HClusterStateError < StandardError
+  end
+
+  class HImageError < StandardError
   end
   
   class HClusterStartError < StandardError
