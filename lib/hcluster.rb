@@ -1021,13 +1021,14 @@ module Hadoop
         # so we can remove the ZOOKEEPER_QUORUM=.. from the following.
         HCluster::ssh_to(zk.dnsName,
                          "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-                         HCluster::summarize_output,HCluster::summarize_output,
+                         stdout_handler,stderr_handler,
                          "[setup:zk:#{zk.dnsName}",
                          "]\n")
       }
     end
 
-    def setup_master(master, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output, debug_level = "DEBUG")
+    def setup_master(master, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output,
+                     extra_packages = "", debug_level = "DEBUG")
       #set cluster's dnsName to that of master.
       @dnsName = master.dnsName
       @master = master
@@ -1046,12 +1047,13 @@ module Hadoop
       HCluster::scp_to(master.dnsName,init_script,"/root/#{@@remote_init_script}")
       HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
       # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
-      HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} #{debug_level}",
+      HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} #{extra_packages} #{debug_level}",
                        stdout_handler,stderr_handler,
                        "[setup:master:#{master.dnsName}","]\n")
     end
     
-    def setup_slaves(slaves, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output, debug_level = "DEBUG")
+    def setup_slaves(slaves, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output,
+                     extra_packages = "", debug_level = "DEBUG")
       init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
       #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
       HCluster::until_ssh_able(slaves)
@@ -1064,7 +1066,7 @@ module Hadoop
         
         HCluster::scp_to(slave.dnsName,init_script,"/root/#{@@remote_init_script}")
         HCluster::ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
-        HCluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} #{debug_level}",
+        HCluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} \"#{extra_packages}\" #{debug_level}",
                          stdout_handler,stderr_handler,
                          "[setup:rs:#{slave.dnsName}","]\n")
       }
