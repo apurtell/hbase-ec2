@@ -325,7 +325,7 @@ module Hadoop
       puts "   :security_group_prefix (hcluster)"
       puts "   :availability_zone (let AWS choose)"
       puts ""
-      puts "Himage.my_images shows a list of possible :label values."
+      puts "Himage.list shows a list of possible :label values."
     end
 
     def initialize( options = {} )
