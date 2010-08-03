@@ -117,6 +117,8 @@ module Hadoop
     def create_image(base_ami_image = 'ami-b00ce4d9',arch = "x86_64",debug = "false")
       #FIXME: check for existence of tarfile URLs: if they don't exist, either raise exception or call upload_tars().
       #..
+      #FIXME: check for existence of @ami_s3 and @tar_s3 buckets.
+      #
 
       image_label = "hbase-#{HCluster.label_to_hbase_version(File.basename(@hbase_filename))}-#{arch}"
 
@@ -128,7 +130,7 @@ module Hadoop
 
 
       puts "Creating and registering image: #{image_label}"
-      puts "Starting a AMI with ID: #{base_ami_image}."
+      puts "Starting a builder AMI with ID: #{base_ami_image}."
       
       launch = HCluster::do_launch({
                                      :ami => base_ami_image,
