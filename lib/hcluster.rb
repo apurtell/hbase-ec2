@@ -58,7 +58,7 @@ module Hadoop
 
     def initialize_himage_usage
       puts ""
-      puts "Himage.new"
+      puts "Himage.new usage"
       puts "  options: (description) (default, if any)"
       puts "   :tar_s3 (name of S3 bucket where tarfiles should be stored)"
       puts "   :ami_s3 (name of S3 bucket where AMIs should be stored)"
@@ -968,7 +968,11 @@ module Hadoop
       @aux = do_launch(options,"aux",lambda{|instances|setup_aux(instances[0])})[0]
     end
     
-    def setup_zookeepers(zks, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
+    # note that default 'zks' argument is cluster's current set of zookeepers.
+    # so calling e.g. "mycluster.setupzookeepers" with no arguments will cause
+    # the zookeeper setup to re-run. The effect on any existing zookeeper processes
+    # depends on the specific behavior of t hbase-ec2-init-zookeeper-remote.sh.
+    def setup_zookeepers(zks = cluster.zks, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
       #when zookeepers are ready, copy info over to them..
       #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
       HCluster::until_ssh_able(zks)
