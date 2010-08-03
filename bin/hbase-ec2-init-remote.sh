@@ -215,7 +215,6 @@ add_client "hadoop/admin" $KDC_ADMIN_PASS $keytab $HOSTNAME
 chown hadoop:hadoop $keytab
 
 if [ "$IS_MASTER" = "true" ]; then
-  kadmin_setup $KDC_MASTER_PASS $KDC_ADMIN_PASS
   cd /usr/local/hadoop-*; kinit -k -t conf/nn.keytab hadoop/$HOSTNAME
 fi
 
