@@ -45,9 +45,9 @@ module Hadoop
       @@s3
     end
 
-    def Himage::upload_tar(label = "test", bucket = "ekoontz-tarballs",file="/Users/ekoontz/s3/sample.tar.gz")
+    def upload(bucket,file)
       filename = File.basename(file)
-      puts "storing '#{filename}' in s3 bucket '#{bucket}'.."
+      puts "storing '#{filename}' in s3 bucket '#{bucket}'..\n"
       @@s3.store filename, open(file), bucket,:access => :public_read
       puts "done."
     end
@@ -59,10 +59,12 @@ module Hadoop
     def initialize_himage_usage
       puts ""
       puts "Himage.new"
-      puts "  options: (default)"
-      puts "   :label  (nil) (see HImage.list for a list of labels)"
+      puts "  options: (description) (default, if any)"
+      puts "   :tar_s3 (name of S3 bucket where tarfiles should be stored)"
+      puts "   :ami_s3 (name of S3 bucket where AMIs should be stored)"
+      puts "   :hadoop (full path to hadoop tar.gz archive)"
+      puts "   :hbase  (full path to hbase tar.gz archive)"
       puts ""
-      puts "Himage.list shows a list of possible :label values."
     end
 
     def initialize(options = {})
@@ -72,24 +74,125 @@ module Hadoop
         :owner_id => @@owner_id
       }.merge(options)
 
-      if options[:label]
-        image_label = options[:label]
-        owned_image = Himage::find_owned_image(options)
-        if owned_image
-          @image = owned_image
-          owned_image
-        else
-          retval = HCluster.create_image(options)
-          puts "image id (retval of HCluster.create_image(#{options.to_yaml})): #{retval}"
-          @image = Himage::find_owned_image(options)
-        end
-        @label = @image.name
-        @image_id = @image.imageId
-        @image
+      if options[:hbase] && options[:hadoop] && options[:tar_s3] && options[:ami_s3]
+        # verify existence of these two files.
+        raise "HBase tarfile: #{options[:hbase]} does not exist or is not readable" unless File.readable? options[:hbase]
+        raise "Hadoop tarfile: #{options[:hadoop]} does not exist or is not readable" unless File.readable? options[:hadoop]
+        @hadoop_filename = File.basename(options[:hadoop])
+        @hbase_filename = File.basename(options[:hbase])
+        @tar_s3 = options[:tar_s3]
+        @ami_s3 = options[:ami_s3]
+        @hadoop_url = "http://#{@tar_s3}.s3.amazonaws.com/#{@hadoop_filename}"
+        @hbase_url = "http://#{@tar_s3}.s3.amazonaws.com/#{@hbase_filename}"
       else
         #not enough options: show usage and exit.
         initialize_himage_usage
       end
+    end
+
+    def upload_tars(options)
+      threads = []
+      for file_to_upload in [options[:hbase],options[:hadoop]]
+        threads << Thread.new(file_to_upload) do |upload|
+          upload options[:tar_s3], upload
+        end
+      end
+      threads.each { |thr|
+        begin
+          thr.join
+        rescue IOError
+          # (ignoring "IOError: stream closed")
+          # ...
+        rescue NoMethodError
+          # (ignoring "NoMethodError: private method `readline' called for nil:NilClass")
+          # ...
+        end
+      }
+    end
+
+    def create_image(arch = "x86_64",debug = "false")
+      #<tmp>
+      base_ami_image = 'ami-f61dfd9f'
+      #</tmp>
+
+      #FIXME: check for existence of tarfile URLs: if they don't exist, either raise exception or call upload_tars().
+      #..
+
+      image_label = "hbase-#{HCluster.label_to_hbase_version(File.basename(@hbase_filename))}-#{arch}"
+
+      existing_image = Himage.find_owned_image :label => image_label
+      if existing_image
+        puts "Existing image: #{existing_image.imageId} already registered for image name #{image_label}. Call HImage.deregister('#{existing_image.imageId}'), if desired."
+        return existing_image.imageId
+      end
+
+
+      puts "Creating and registering image: #{image_label}"
+      puts "Starting a AMI with ID: #{base_ami_image}."
+      
+      launch = HCluster::do_launch({
+                                     :ami => base_ami_image,
+                                     :key_name => "root",
+                                     :instance_type => "m1.large"
+                                   },"image-creator")
+      
+      if (launch && launch[0])
+        @image_creator = launch[0]
+      else 
+        raise "Could not launch image creator."
+      end
+      
+      image_creator_hostname = @image_creator.dnsName
+      puts "Started image creator: #{image_creator_hostname}"
+      
+      HCluster::until_ssh_able([@image_creator])
+      image_creator_hostname = @image_creator.dnsName
+      puts "Copying scripts."
+      HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
+      HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
+      HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
+      
+      # Copy private key and certificate (for bundling image)
+      HCluster::scp_to(image_creator_hostname, EC2_ROOT_SSH_KEY, "/mnt")
+      HCluster::scp_to(image_creator_hostname, EC2_CERT, "/mnt")
+
+      hbase_version = HCluster.label_to_hbase_version(File.basename(@hbase_filename))
+      hadoop_version = HCluster.label_to_hbase_version(File.basename(@hadoop_filename))
+      lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-0.20-tm-2.tar.gz"
+      java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
+      ami_bucket = @ami_s3
+
+      image_creator_hostname = @image_creator.dnsName
+      sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{@hbase_filename} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{@ami_s3} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
+      puts "sh: #{sh}" if (debug == true)
+
+      HCluster::ssh_to(image_creator_hostname,sh,
+                       HCluster.image_output_handler(debug),
+                       HCluster.image_output_handler(debug))
+      puts(" .. done.")
+
+      # Register image
+      image_location = "#{@ami_s3}/hbase-#{hbase_version}-#{arch}.manifest.xml"
+
+      # FIXME: notify maintainers:
+      # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not
+      # mention :name param (only :image_location).
+      puts "registering image label: #{image_label} at manifest location: #{image_location}"
+      registered_image = @@shared_base_object.register_image({
+                                                               :name => image_label,
+                                                               :image_location => image_location,
+                                                               :description => "HBase Cluster Image: HBase Version: #{hbase_version}; Hadoop Version: #{hadoop_version}"
+                                                             })
+      puts "image registered."
+      if (!(debug == true))
+        puts "shutting down image-builder #{@image_creator.instanceId}"
+        @@shared_base_object.terminate_instances({
+                                                   :instance_id => @image_creator.instanceId
+                                                 })
+      else
+        puts "not shutting down image creator: #{@image_creator.dnsName}"
+      end
+      registered_image.imageId
     end
 
     def Himage.find_owned_image(options)
@@ -127,7 +230,7 @@ module Hadoop
         
         if (retval2 == nil and search_all_visible_images == true)
           options.delete(:owner_id)
-          puts "image '#{image_label}' not found in owner #{@@owner_id}'s images; looking in all images (may take a while..)"
+          puts "image named '#{image_label}' not found in owner #{@@owner_id}'s images; looking in all images (may take a while..)"
           retval = @@shared_base_object.describe_images(options)
           #filter by image_label
           retval2 = retval['imagesSet']['item'].detect{
@@ -142,6 +245,10 @@ module Hadoop
 
     def deregister
       Himage.deregister(self.image.imageId)
+    end
+
+    def Himage.deregister_image(image_id)
+      Himage.deregister(image_id)
     end
 
     def Himage.deregister(image)
@@ -208,8 +315,8 @@ module Hadoop
       puts ""
       puts "HCluster.new"
       puts "  options: (default) (example)"
-      puts "   :label (nil) (see HCluster.my_images for a list of labels)"
-      puts "   :image_id (nil) (overrides :label - use only one of {:label,:image_id}) ('ami-dc866db5')"
+      puts "   :label (nil) (see Himage.my_images for a list of labels)"
+      puts "   :ami (nil) (overrides :label - use only one of {:label,:ami}) ('ami-dc866db5')"
       puts "   :hbase_version (ENV['HBASE_VERSION'])"
       puts "   :num_regionservers  (3)"
       puts "   :num_zookeepers  (1)"
@@ -220,14 +327,14 @@ module Hadoop
       puts "   :debug_level  (@@debug_level)"
       puts "   :validate_images  (true)"
       puts "   :security_group_prefix (hcluster)"
-      puts "   :availability_zone (us-east-1a)"
+      puts "   :availability_zone (us-east-1c)"
       puts ""
-      puts "HCluster.my_images shows a list of possible :label values."
+      puts "Himage.list shows a list of possible :label values."
     end
 
     def initialize( options = {} )
 
-      if options.size == 0 || (options.image_id == nil && options.label == nil)
+      if options.size == 0 || (options.ami == nil && options.label == nil)
         #not enough info to create cluster: show documentation.
         initialize_print_usage
         return nil
@@ -245,7 +352,7 @@ module Hadoop
         :debug_level => @@debug_level,
         :validate_images => true,
         :security_group_prefix => "hcluster",
-        :availability_zone => "us-east-1a",
+        :availability_zone => "us-east-1c"
       }.merge(options)
 
       
@@ -254,19 +361,33 @@ module Hadoop
         @ami_owner_id = options[:owner_id]
       end
 
+      #backwards compatibility
+      #use :ami, not :image_id, in the future.
       if options[:image_id]
+        options[:ami] = options[:image_id]
+      end
+
+      if options[:ami]
         #overrides options[:label] if present.
-        puts "searching for image: '#{options.image_id}'.."
-        search_results = HCluster.search_images :image_id => options.image_id, :output_fn => nil
+        puts "searching for AMI: '#{[options[:ami]]}'.."
+        search_results = HCluster.search_images :ami => options[:ami], :output_fn => nil
         if search_results && search_results.size > 0
           if search_results[0].name
+            puts "#{options.ami} has label: #{search_results[0].name}"
             options[:label] = search_results[0].name
-            puts "found image with label: #{options[:label]}."
           else
-            raise "Image name not found for AMI struct: #{search_results.to_yaml}."
+            puts "Warning: image name not found for AMI struct:\n#{search_results.to_yaml}."
+            puts " (using 'No_label' as label)."  
+            options[:label] = 'No_label'
           end
+  
+          options[:validate_images] = false
+
+          @zk_ami = options[:ami]
+          @master_ami = options[:ami]
+          @slave_ami = options[:ami]
         else
-          raise "AMI : '#{options[:image_id]}' not found."
+          raise "AMI : '#{options[:ami]}' not found."
         end
       end
       
@@ -301,10 +422,10 @@ module Hadoop
                 :slave_image_label => desc_images[0].name
               }.merge(options)
             else
-              raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with create_image()."
+              raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with Himage.create_image()."
             end
           else
-            raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with create_image()."
+            raise HClusterStartError,"No suitable HBase images found in your AMI list. Please create at least one with Himage.create_image()."
           end
         end
 
@@ -333,6 +454,7 @@ module Hadoop
       @options = options
       @owner_id = @@owner_id
       
+      #used to handle shared resources.
       @lock = Monitor.new
       
       @num_regionservers = options[:num_regionservers]
@@ -521,7 +643,7 @@ module Hadoop
       puts "HCluster.search_image(options)"
       puts "  options: (default value) (example)"
       puts "  :owner_id (nil)"
-      puts "  :image_id (nil) ('ami-dc866db5')"
+      puts "  :ami (nil) ('ami-dc866db5')"
       puts "  :output_fn (puts)"
     end
 
@@ -532,8 +654,8 @@ module Hadoop
         return nil
       end
 
-      #if no image_id, set owner_id to HCluster owner.
-      if options[:image_id]
+      #if no ami, set owner_id to HCluster owner.
+      if options[:ami]
         search_all_visible_images = true
       else
         search_all_visible_images = false
@@ -550,7 +672,7 @@ module Hadoop
 
       imgs = HCluster.describe_images(options).imagesSet.item
       if options[:output_fn]
-        options.output_fn.call "label\t\t\t\timage_id\t\t\towner_id"
+        options.output_fn.call "label\t\t\t\tami\t\t\towner_id"
         options.output_fn.call "========================================================================="
         imgs.each {|image| 
           options.output_fn.call "#{image.name}\t\t#{image.imageId}\t\t#{image.imageOwnerId}"
@@ -561,155 +683,7 @@ module Hadoop
     end
     
     def HCluster.deregister_image(image)
-      @@shared_base_object.deregister_image({:image_id => image})
-    end
-
-    def HCluster.create_image_print_usage
-      puts ""
-      puts "HCluster.create_image"
-      puts "  options: (default)"
-      puts "  :label (nil) (see HCluster.my_images for a list of labels)"
-      puts "  :hbase_version (ENV['HBASE_VERSION'])"
-      puts "  :hadoop_version (ENV['HADOOP_VERSION'])"
-      puts "  :slave_instance_type (nil)"
-      puts "  :debug (false)"
-#FIXME: use ENV as above.
-      puts "  :user (ekoontz)"
-      puts "  :s3_bucket (ekoontz-amis)"
-      puts ""
-      puts "HCluster.my_images shows a list of possible :label values."
-    end
-    
-    def HCluster.create_image(options = {})
-      if options.size == 0
-        return create_image_print_usage
-      end
-
-      if options[:label]
-        options = {
-          :hbase_version => label_to_hbase_version(options[:label])
-        }.merge(options)
-      end
-
-      options = {
-        :label => nil,
-        :hbase_version => "#{ENV['HBASE_VERSION']}",
-        :hadoop_version => "#{ENV['HADOOP_VERSION']}",
-        :slave_instance_type => nil,
-        :user => "ekoontz",
-        :s3_bucket => "ekoontz-amis",
-        :debug => false,
-      }.merge(options)
-      
-      #cleanup any existing create_image instances.
-      if @image_creator
-        terminate_instances({
-                              :instance_id => @image_creator.instanceId
-                            })
-        @image_creator = nil
-      end
-      
-      hbase_version = options[:hbase_version]
-      hadoop_version = options[:hadoop_version]
-      slave_instance_type = options[:slave_instance_type]
-      user = options[:user]
-      s3_bucket = options[:s3_bucket]
-      
-      arch=@@slave_arch
-
-      if options[:label]
-        image_label = options[:label]
-      else
-        image_label = "hbase-#{hbase_version}-#{arch}"
-      end
-
-      existing_image = find_owned_image(image_label)
-      
-      if existing_image
-        puts "Existing image: #{existing_image.imageId} already registered for image name #{image_label}. Call HImage::deregister_image('#{existing_image.imageId}'), if desired."
-        
-        return existing_image.imageId
-      end
-      
-      #FIXME: check s3 source tarballs permissions to make sure that the image creation will work before
-      # going to the trouble of creating an instance to create the image.
-
-      puts "Creating and registering image: #{image_label}"
-      puts "Starting a AMI with ID: #{@@default_base_ami_image}."
-      
-      launch = do_launch({
-                           :image_id => @@default_base_ami_image,
-                           :key_name => "root",
-                           :instance_type => "m1.large"
-                         },"image-creator")
-      
-      if (launch && launch[0])
-        image_creator = launch[0]
-      else 
-        raise "Could not launch image creator."
-      end
-      
-      image_creator_hostname = image_creator.dnsName
-      puts "Started image creator: #{image_creator_hostname}"
-      
-      puts "Copying scripts."
-      until_ssh_able([image_creator])
-      
-      scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
-      scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
-      scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
-      
-      # Copy private key and certificate (for bundling image)
-      scp_to(image_creator_hostname, EC2_ROOT_SSH_KEY, "/mnt")
-      scp_to(image_creator_hostname, EC2_CERT, "/mnt")
-
-      if (major_version(hbase_version) == 0) and (minor_version(hbase_version) < 21)
-        #Older format.
-        hbase_file = "hbase-#{hbase_version}.tar.gz"
-      else
-        #Newer format.
-        hbase_file ="hbase-#{hbase_version}-bin.tar.gz"
-      end
-      
-      hbase_url = "http://ekoontz-tarballs.s3.amazonaws.com/#{hbase_file}"
-      
-      hadoop_url = "http://ekoontz-tarballs.s3.amazonaws.com/hadoop-#{hadoop_version}.tar.gz"
-      lzo_url = "http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-0.20-tm-2.tar.gz"
-      java_url = "http://mlai.jdk.s3.amazonaws.com/jdk-6u20-linux-#{arch}.bin"
-      
-      puts "running /mnt/create-hbase-image-remote on image builder: #{image_creator_hostname}; hbase_version=#{hbase_version}; hadoop_version=#{hadoop_version}.."
-
-      ssh_to(image_creator_hostname,
-             "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{hbase_file} HBASE_URL=#{hbase_url} HADOOP_URL=#{hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{options[:s3_bucket]} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\"",
-             HCluster.image_output_handler(options[:debug]),
-             HCluster.image_output_handler(options[:debug]))
-      
-      puts(" .. done.")
-
-      # Register image
-      image_location = "#{s3_bucket}/hbase-#{hbase_version}-#{arch}.manifest.xml"
-      
-      # FIXME: notify maintainers: 
-      # http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#register_image-instance_method does not 
-      # mention :name param (only :image_location).
-      puts "registering image label: #{image_label} at manifest location: #{image_location}"
-      registered_image = @@shared_base_object.register_image({
-                                                               :name => image_label,
-                                                               :image_location => image_location,
-                                                               :description => "HBase Cluster Image: HBase Version: #{hbase_version}; Hadoop Version: #{hadoop_version}"
-                                                             })
-      
-      puts "image registered."
-      if (!(options[:debug] == true))
-        puts "shutting down image-builder #{image_creator.instanceId}"
-        @@shared_base_object.terminate_instances({
-                                                   :instance_id => image_creator.instanceId
-                                                 })
-      else
-        puts "not shutting down image creator: #{image_creator.dnsName}"
-      end
-      puts "referring to registered image: #{registered_image.to_yaml}"
-      registered_image.imageId
+      @@shared_base_object.deregister_image({:ami => image})
     end
     
     def HCluster.image_output_handler(debug)
@@ -751,7 +725,7 @@ module Hadoop
     def launch
       @state = "launching"
       
-    init_hbase_cluster_secgroups
+      init_hbase_cluster_secgroups
       launch_zookeepers
       launch_master
       launch_slaves
@@ -759,7 +733,7 @@ module Hadoop
         launch_aux
       end
       
-    # if threaded, we would set to "pending" and then 
+      # if threaded, we would set to "pending" and then 
       # use join to determine when state should transition to "running".
       #    @launchTime = master.launchTime
 
@@ -870,6 +844,9 @@ module Hadoop
     end
     
     def HCluster.do_launch(options,name="",on_boot = nil)
+      # @@shared_base_object requires :image_id instead of :ami; I prefer the latter.
+      options[:image_id] = options[:ami] if options[:ami]
+
       instances = @@shared_base_object.run_instances(options)
       watch(name,instances)
       if on_boot
@@ -937,8 +914,7 @@ module Hadoop
     
     def launch_zookeepers
       options = {}
-      zk_img_id = zk_image['imageId']
-      options[:image_id] = zk_img_id
+      options[:ami] = zk_image['imageId']
       options[:min_count] = @num_zookeepers
       options[:max_count] = @num_zookeepers
       options[:security_group] = @zk_security_group
@@ -958,7 +934,7 @@ module Hadoop
     
     def launch_master
       options = {}
-      options[:image_id] = master_image['imageId'] 
+      options[:ami] = master_image['imageId'] 
       options[:min_count] = 1
       options[:max_count] = 1
       options[:security_group] = @master_security_group
@@ -970,7 +946,7 @@ module Hadoop
     
     def launch_slaves
       options = {}
-      options[:image_id] = regionserver_image['imageId']
+      options[:ami] = regionserver_image['imageId']
       options[:min_count] = @num_regionservers
       options[:max_count] = @num_regionservers
       options[:security_group] = @rs_security_group
@@ -982,7 +958,7 @@ module Hadoop
     
     def launch_aux
       options = {}
-      options[:image_id] = regionserver_image['imageId']
+      options[:ami] = regionserver_image['imageId']
       options[:min_count] = 1
       options[:max_count] = 1
       options[:security_group] = @aux_security_group
@@ -992,11 +968,16 @@ module Hadoop
       @aux = do_launch(options,"aux",lambda{|instances|setup_aux(instances[0])})[0]
     end
     
-    def setup_zookeepers(zks)
+    def setup_zookeepers(zks, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
       #when zookeepers are ready, copy info over to them..
       #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
       HCluster::until_ssh_able(zks)
       zks.each {|zk|
+
+        # if no zone specified by user, use the zone that AWS chose for the first
+        # instance launched in the cluster (the first zookeeper).
+        @zone = zk.placement['availabilityZone'] if !@zone
+
         if (@debug_level > 0)
           puts "zk dnsname: #{zk.dnsName}"
         end
@@ -1006,15 +987,14 @@ module Hadoop
         # so we can remove the ZOOKEEPER_QUORUM=.. from the following.
         HCluster::ssh_to(zk.dnsName,
                          "sh -c \"ZOOKEEPER_QUORUM=\\\"#{zookeeper_quorum}\\\" sh /var/tmp/hbase-ec2-init-zookeeper-remote.sh\"",
-#                         HCluster::summarize_output,HCluster::summarize_output,
-                         HCluster::echo_stdout,HCluster::echo_stderr,
+                         HCluster::summarize_output,HCluster::summarize_output,
                          "[setup:zk:#{zk.dnsName}",
                          "]\n")
       }
     end
 
-    def setup_master(master)
-      #cluster's dnsName is same as master's.
+    def setup_master(master, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
+      #set cluster's dnsName to that of master.
       @dnsName = master.dnsName
       @master = master
       
@@ -1032,18 +1012,15 @@ module Hadoop
       HCluster::scp_to(master.dnsName,init_script,"/root/#{@@remote_init_script}")
       HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
       # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
-      HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.privateDnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-                         HCluster::echo_stdout,HCluster::echo_stderr,
-#                       HCluster::summarize_output,HCluster::summarize_output,
+      HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+                       stdout_handler,stderr_handler,
                        "[setup:master:#{master.dnsName}","]\n")
     end
     
-    def setup_slaves(slaves) 
+    def setup_slaves(slaves, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
       init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
       #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
-      puts "setup_slaves: calling until_ssh_able()"
       HCluster::until_ssh_able(slaves)
-      puts "setup_slaves: done: slaves are sshable now."
       slaves.each {|slave|
         # <ssh key>
         HCluster::scp_to(slave.dnsName,"#{EC2_ROOT_SSH_KEY}","/root/.ssh/id_rsa")
@@ -1053,9 +1030,8 @@ module Hadoop
         
         HCluster::scp_to(slave.dnsName,init_script,"/root/#{@@remote_init_script}")
         HCluster::ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
-        HCluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.privateDnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
-                         HCluster::echo_stdout,HCluster::echo_stderr,
-#                         HCluster::summarize_output,HCluster::summarize_output,
+        HCluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
+                         stdout_handler,stderr_handler,
                          "[setup:rs:#{slave.dnsName}","]\n")
       }
     end
@@ -1124,7 +1100,17 @@ module Hadoop
     end
     
     def describe_instances(options = {})
+      #   "If no instance IDs are provided, information of all relevant instances
+      # information will be returned. If an instance is specified that does not exist a fault is returned. 
+      # If an instance is specified that exists but is not owned by the user making the request, 
+      # then that instance will not be included in the returned results.
+
+      #   "Recently terminated instances will be included in the returned results 
+      # for a small interval subsequent to their termination. This interval is typically 
+      # of the order of one hour."
+      #  - http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#describe_instances-instance_method
       retval = nil
+      #FIXME: a mutex doesn't seem to be needed: isn't AWS::EC2::Base::describe_instances read-only?
       @lock.synchronize {
         retval = super(options)
       }
@@ -1134,6 +1120,10 @@ module Hadoop
     #overrides parent: tries to find image using owner_id, which will be faster to iterate through (in .detect loop)
     # if not found, tries all images.
     def HCluster.describe_images(options,image_label = nil,search_all_visible_images = true)
+
+      # @@shared_base_object requires :image_id instead of :ami; I prefer the latter.
+      options[:image_id] = options[:ami] if options[:ami]
+
       if image_label
         options = {
           :owner_id => @@owner_id
@@ -1160,16 +1150,25 @@ module Hadoop
         @@shared_base_object.describe_images(options)
       end
     end
-    
+
     def zk_image
+      if @zk_ami
+        return @@shared_base_object.describe_images(:image_id => @zk_ami)['imagesSet']['item'][0]
+      end
       get_image(@zk_image_label)
     end
     
     def regionserver_image
+      if @slave_ami
+        return @@shared_base_object.describe_images(:image_id => @slave_ami)['imagesSet']['item'][0]
+      end
       get_image(@slave_image_label)
     end
     
     def master_image
+      if @master_ami
+        return @@shared_base_object.describe_images(:image_id => @master_ami)['imagesSet']['item'][0]
+      end
       get_image(@master_image_label)
     end
     
@@ -1177,8 +1176,12 @@ module Hadoop
       return describe_images({:owner_id => @@owner_id},image_label,false)
     end
     
-    def get_image(image_label)
-      matching_image = HCluster.describe_images({:owner_id => @ami_owner_id},image_label)
+    def get_image(image_label,options = {})
+      options = {
+        :owner_id => @ami_owner_id
+      }.merge(options)
+
+      matching_image = HCluster.describe_images(options,image_label)
       if matching_image
         matching_image
       else
@@ -1289,7 +1292,32 @@ module Hadoop
       
       HCluster.ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
     end
-    
+
+    def ssh_to(host,
+               command=nil,
+               stdout_line_reader = HCluster.echo_stdout,
+               stderr_line_reader = HCluster.echo_stderr,
+               begin_output = nil,
+               end_output = nil)
+      HCluster.ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
+    end
+
+    #Matches unix "scp" argument conventions:
+    #e.g. "cluster.scp("/path/to/localfile","host:/path_to_remote_path"),
+    #Except that unix "scp" will not supply a default host, but we  will use cluster.dnsName
+    #as the default host.
+    #FIXME: implement (-r)ecursive support.
+    def scp(local_path,remote_path)
+      if  /([^:]+):(.*)/.match(remote_path)
+        host                     = /([^:]+):(.*)/.match(remote_path)[1]
+        remote_path_without_host = /([^:]+):(.*)/.match(remote_path)[2]
+      else
+        host = dnsName
+        remote_path_without_host = remote_path
+      end
+      HCluster.scp_to(host,local_path,remote_path_without_host)
+    end
+
     def HCluster.scp_to(host,local_path,remote_path)
       #http://net-ssh.rubyforge.org/scp/v1/api/classes/Net/SCP.html#M000005
       # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
@@ -1309,6 +1337,24 @@ module Hadoop
       terminate_aux
       @state = "terminated"
       status
+    end
+
+    def HCluster::terminate
+      # Note: this terminates all instances but does not sync()
+      # any individual HCluster objects, so clusters will have
+      # old information about now-terminated instances.
+      # FIXME: add prompt.
+      puts "Terminating ALL instances owned by you (owner_id=#{@@owner_id})."
+
+      @aws_connection or (@aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AWS_ACCESS_KEY_ID'],:secret_access_key=>ENV['AWS_SECRET_ACCESS_KEY']))
+      @aws_connection or raise HClusterStateError,"Could not log you in to AWS: check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment."
+
+      @aws_connection.describe_instances.reservationSet.item.each do |ec2_instance_set|
+        ec2_instance_set.instancesSet.item.each {|instance|
+          puts "terminating instance: #{instance.instanceId} (#{instance.imageId})"
+          @@shared_base_object.terminate_instances :instance_id => instance.instanceId
+        }
+      end
     end
     
     def to_s
@@ -1344,14 +1390,18 @@ module Hadoop
     
     def HCluster.until_ssh_able(instances,debug_level = @@debug_level)
       # do not return until every instance in the instances array is ssh-able.
-      debug_level = 1
+      debug_level = 0
       instances.each {|instance|
         connected = false
         until connected == true
           begin
-            puts "#{instance.dnsName} trying to ssh.."
+            if debug_level > 0
+              puts "#{instance.dnsName} trying to ssh.."
+            end
             ssh_to(instance.dnsName,"true",HCluster::consume_output,HCluster::consume_output,nil,nil)
-            puts "#{instance.dnsName} is sshable."
+            if debug_level > 0
+              puts "#{instance.dnsName} is sshable."
+            end
             connected = true
           rescue Net::SSH::AuthenticationFailed
             if debug_level > 0
@@ -1426,9 +1476,9 @@ module Hadoop
 
     def HCluster.label_to_hbase_version(label)
       begin
-        /hbase-([0-9+]\.[0-9]+\.[0-9]+)/.match(label)[1]
+        /(hbase|hadoop)-([0-9]+\.[0-9]+((\.)([0-9]+)|(\-tm-[0-9]+)))/.match(label)[2]
       rescue NoMethodError
-        "could not convert label: #{label} to an hbase version."
+        "could not convert label: '#{label}' to an hbase version."
       end
     end
   end

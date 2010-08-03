@@ -52,11 +52,13 @@ echo "Done."
 # Install tools
 echo "Installing rpms."
 yum -y update
-yum -y install lynx screen ganglia-gmetad ganglia-gmond ganglia-web httpd php lzo-devel xfsprogs emacs-nox
+yum -y install lynx screen ganglia-gmetad ganglia-gmond ganglia-web httpd php lzo-devel xfsprogs emacs-nox krb5-server
 yum -y clean all
 chkconfig --levels 0123456 httpd off
 chkconfig --levels 0123456 gmetad off
 chkconfig --levels 0123456 gmond off
+chkconfig --levels 0123456 krb5kdc off
+chkconfig --levels 0123456 kadmin off
 
 # Install Hadoop
 echo "Installing Hadoop $HADOOP_VERSION."
@@ -125,9 +127,7 @@ cd /usr/local/hbase-${HBASE_VERSION} && tar xzf /tmp/lzo-linux-${HADOOP_VERSION}
 #-rw-rw-r-- 1 root root   69935 Jun 30 18:04 hadoop-tools-0.20-tm-2.jar
 
 # fix above : add all symlinks.
-
-echo "ln -s hadoop-core-${HADOOP_VERSION}.jar hadoop-core.jar"
-ln -s hadoop-core-${HADOOP_VERSION}.jar hadoop-core.jar
+ln -s /usr/local/hadoop/hadoop-core-${HADOOP_VERSION}.jar /usr/local/hadoop/hadoop-core.jar
 
 #[root@domU-12-31-39-0A-34-12 hbase]# find . -name "*.jar" -ls
 #150868  172 -rw-rw-r--   1 root     root       171994 Jul  6 18:09 ./lib/libthrift-r771587.jar
