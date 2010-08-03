@@ -132,7 +132,6 @@ adduser hadoop
 groupadd supergroup
 adduser -G supergroup hbase
 if [ "$IS_MASTER" = "true" ]; then
-  yum -y install krb5-server
   cat > /var/kerberos/krb5kdc/kadm5.acl <<EOF
 */admin@HADOOP.LOCALDOMAIN    *
 EOF
