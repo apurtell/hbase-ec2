@@ -993,7 +993,7 @@ module Hadoop
       }
     end
 
-    def setup_master(master, stdout_handler = HCluster::echo_stdout, stderr_handler = HCluster::echo_stderr) 
+    def setup_master(master, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
       #cluster's dnsName is same as master's.
       @dnsName = master.dnsName
       @master = master
@@ -1017,7 +1017,7 @@ module Hadoop
                        "[setup:master:#{master.dnsName}","]\n")
     end
     
-    def setup_slaves(slaves, stdout_handler = HCluster::echo_stdout,stderr_handler = HCluster::echo_stderr) 
+    def setup_slaves(slaves, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
       init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
       #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
       HCluster::until_ssh_able(slaves)
