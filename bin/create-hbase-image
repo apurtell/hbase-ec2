@@ -18,6 +18,11 @@
 # Create a HBase AMI.
 # Inspired by Jonathan Siegel's EC2 script (http://blogsiegel.blogspot.com/2006/08/sandboxing-amazon-ec2.html)
 
+#FIXME: replace this shell script with a more 
+# declarative statement of what we want
+# the just-started zookeeper's setup to look like,
+# using Whirr, Chef, Puppet, or some combination thereof.
+
 set -x
 
 # allow override of SLAVE_INSTANCE_TYPE from the command line 

@@ -19,6 +19,11 @@
 # limitations under the License.
 #
 
+#FIXME: replace this shell script with a more 
+# declarative statement of what we want
+# the just-started zookeeper's setup to look like,
+# using Whirr, Chef, Puppet, or some combination thereof.
+
 # ZOOKEEPER_QUORUM must be set in the environment by the caller.
 HBASE_HOME=`ls -d /usr/local/hbase-* | grep -v tar.gz | head -n1`
 set -x
