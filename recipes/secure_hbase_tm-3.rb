@@ -1,6 +1,6 @@
 options = {
   :label => 'hbase-0.20-tm-3-x86_64', 
-  :num_regionservers => 3,
+  :num_regionservers => 5,
   :owner_id => '801535628028'
 }
 cluster = @hcluster.new options

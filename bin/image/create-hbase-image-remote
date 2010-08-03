@@ -56,14 +56,13 @@ echo "Done."
 # Install tools
 echo "Installing rpms."
 yum -y update
-yum -y install lynx screen ganglia-gmetad ganglia-gmond ganglia-web httpd php lzo-devel xfsprogs emacs-nox krb5-libs jakarta-commons-daemon-jsvc krb5-server
-
+yum -y install lynx screen ganglia-gmetad ganglia-gmond ganglia-web httpd php lzo-devel xfsprogs emacs-nox krb5-server
 yum -y clean all
-chkconfig httpd off
-chkconfig gmetad off
-chkconfig gmond off
-chkconfig krb5kdc off
-chkconfig kadmin off
+chkconfig --levels 0123456 httpd off
+chkconfig --levels 0123456 gmetad off
+chkconfig --levels 0123456 gmond off
+chkconfig --levels 0123456 krb5kdc off
+chkconfig --levels 0123456 kadmin off
 
 # Install Hadoop
 echo "Installing Hadoop $HADOOP_VERSION."
