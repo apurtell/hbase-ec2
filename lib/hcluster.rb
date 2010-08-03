@@ -327,7 +327,7 @@ module Hadoop
       puts "   :debug_level  (@@debug_level)"
       puts "   :validate_images  (true)"
       puts "   :security_group_prefix (hcluster)"
-      puts "   :availability_zone (let AWS choose)"
+      puts "   :availability_zone (us-east-1c)"
       puts ""
       puts "Himage.list shows a list of possible :label values."
     end
@@ -351,7 +351,8 @@ module Hadoop
         :slave_arch => "x86_64",
         :debug_level => @@debug_level,
         :validate_images => true,
-        :security_group_prefix => "hcluster"
+        :security_group_prefix => "hcluster",
+        :availability_zone => "us-east-1c"
       }.merge(options)
 
       
