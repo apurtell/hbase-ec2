@@ -126,7 +126,7 @@ fi
 
 # Security setup
 # all servers need krb5 libraries
-yum -y install krb5-libs jakarta-commons-daemon-jsvc
+yum -y install jakarta-commons-daemon-jsvc
 [ -f $HADOOP_HOME/bin/jsvc ] || ln -s /usr/bin/jsvc $HADOOP_HOME/bin
 adduser hadoop
 groupadd supergroup
