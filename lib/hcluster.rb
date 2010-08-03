@@ -454,6 +454,7 @@ module Hadoop
       @options = options
       @owner_id = @@owner_id
       
+      #used to handle shared resources.
       @lock = Monitor.new
       
       @num_regionservers = options[:num_regionservers]
@@ -1099,7 +1100,17 @@ module Hadoop
     end
     
     def describe_instances(options = {})
+      #   "If no instance IDs are provided, information of all relevant instances
+      # information will be returned. If an instance is specified that does not exist a fault is returned. 
+      # If an instance is specified that exists but is not owned by the user making the request, 
+      # then that instance will not be included in the returned results.
+
+      #   "Recently terminated instances will be included in the returned results 
+      # for a small interval subsequent to their termination. This interval is typically 
+      # of the order of one hour."
+      #  - http://amazon-ec2.rubyforge.org/AWS/EC2/Base.html#describe_instances-instance_method
       retval = nil
+      #FIXME: a mutex doesn't seem to be needed: isn't AWS::EC2::Base::describe_instances read-only?
       @lock.synchronize {
         retval = super(options)
       }
