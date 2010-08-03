@@ -120,7 +120,7 @@ module Hadoop
 
       image_label = "hbase-#{HCluster.label_to_hbase_version(File.basename(@hbase_filename))}-#{arch}"
 
-      existing_image = Himage.find_owned_image(image_label)
+      existing_image = Himage.find_owned_image :label => image_label
       if existing_image
         puts "Existing image: #{existing_image.imageId} already registered for image name #{image_label}. Call HImage::deregister_image('#{existing_image.imageId}'), if desired."
         return existing_image.imageId
