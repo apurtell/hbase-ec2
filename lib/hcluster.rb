@@ -952,7 +952,8 @@ module Hadoop
       options = {
         :stdout_handler => HCluster::echo_stdout,
         :stderr_handler => HCluster::echo_stderr,
-        :hbase_debug_level => 'DEBUG'
+        :hbase_debug_level => 'DEBUG',
+        :extra_packages => ""
       }.merge(options)
 
       options[:ami] = master_image['imageId'] 
@@ -962,8 +963,10 @@ module Hadoop
       options[:instance_type] = @master_instance_type
       options[:key_name] = @master_key_name
       options[:availability_zone] = @zone
+
       @master = HCluster.do_launch(options,"master",lambda{|instances| setup_master(instances[0],
                                                                                     options[:stdout_handler],options[:stderr_handler],
+                                                                                    options[:extra_packages],
                                                                                     options[:hbase_debug_level])})[0]
     end
     
@@ -971,7 +974,8 @@ module Hadoop
       options = {
         :stdout_handler => HCluster::echo_stdout,
         :stderr_handler => HCluster::echo_stderr,
-        :hbase_debug_level => 'DEBUG'
+        :hbase_debug_level => 'DEBUG',
+        :extra_packages => ''
       }.merge(options)
 
       options[:ami] = regionserver_image['imageId']
@@ -983,6 +987,7 @@ module Hadoop
       options[:availability_zone] = @zone
       @slaves = HCluster.do_launch(options,"rs",lambda{|instances|setup_slaves(instances,
                                                                                options[:stdout_handler],options[:stderr_handler],
+                                                                               options[:extra_packages],
                                                                                options[:hbase_debug_level])})
     end
     
@@ -1047,7 +1052,7 @@ module Hadoop
       HCluster::scp_to(master.dnsName,init_script,"/root/#{@@remote_init_script}")
       HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
       # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
-      HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} #{extra_packages} #{debug_level}",
+      HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} \"#{extra_packages}\" #{debug_level}",
                        stdout_handler,stderr_handler,
                        "[setup:master:#{master.dnsName}","]\n")
     end
