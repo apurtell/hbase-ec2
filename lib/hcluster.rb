@@ -1313,6 +1313,21 @@ module Hadoop
       @state = "terminated"
       status
     end
+
+    def HCluster::terminate
+      # Note: this terminates all instances but does not sync()
+      # any individual HCluster objects, so clusters will have
+      # old information about now-terminated instances.
+      # FIXME: add prompt.
+      puts "Terminating ALL instances owned by you (owner_id=#{@@owner_id})."
+
+      @aws_connection.describe_instances.reservationSet.item.each do |ec2_instance_set|
+        ec2_instance_set.instancesSet.item.each {|instance|
+          puts "terminating instance: #{instance.instanceId} (#{instance.imageId})"
+          @@shared_base_object.terminate_instances :instance_id => instance.instanceId
+        }
+      end
+    end
     
     def to_s
       if (@state)
