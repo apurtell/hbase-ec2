@@ -118,7 +118,7 @@ module Hadoop
       #FIXME: check for existence of tarfile URLs: if they don't exist, either raise exception or call upload_tars().
       #..
 
-      image_label = "hbase-#{HCluster.label_to_hbase_version(File.basename(@hbase_filename))}"
+      image_label = "hbase-#{HCluster.label_to_hbase_version(File.basename(@hbase_filename))}-#{arch}"
 
       existing_image = Himage.find_owned_image(image_label)
       if existing_image
