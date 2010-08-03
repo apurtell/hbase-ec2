@@ -311,7 +311,7 @@ module Hadoop
       puts ""
       puts "HCluster.new"
       puts "  options: (default) (example)"
-      puts "   :label (nil) (see HCluster.my_images for a list of labels)"
+      puts "   :label (nil) (see Himage.my_images for a list of labels)"
       puts "   :ami (nil) (overrides :label - use only one of {:label,:ami}) ('ami-dc866db5')"
       puts "   :hbase_version (ENV['HBASE_VERSION'])"
       puts "   :num_regionservers  (3)"
@@ -325,7 +325,7 @@ module Hadoop
       puts "   :security_group_prefix (hcluster)"
       puts "   :availability_zone (let AWS choose)"
       puts ""
-      puts "HCluster.my_images shows a list of possible :label values."
+      puts "Himage.my_images shows a list of possible :label values."
     end
 
     def initialize( options = {} )
