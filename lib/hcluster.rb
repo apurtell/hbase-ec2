@@ -1302,6 +1302,22 @@ module Hadoop
       HCluster.ssh_with_host(command,stdout_line_reader,stderr_line_reader,host,begin_output,end_output)
     end
 
+    #Matches unix "scp" argument conventions:
+    #e.g. "cluster.scp("/path/to/localfile","host:/path_to_remote_path"),
+    #Except that unix "scp" will not supply a default host, but we  will use cluster.dnsName
+    #as the default host.
+    #FIXME: implement (-r)ecursive support.
+    def scp(local_path,remote_path)
+      if  /([^:]+):(.*)/.match(remote_path)
+        host                     = /([^:]+):(.*)/.match(remote_path)[1]
+        remote_path_without_host = /([^:]+):(.*)/.match(remote_path)[2]
+      else
+        host = dnsName
+        remote_path_without_host = remote_path
+      end
+      HCluster.scp_to(host,local_path,remote_path_without_host)
+    end
+
     def HCluster.scp_to(host,local_path,remote_path)
       #http://net-ssh.rubyforge.org/scp/v1/api/classes/Net/SCP.html#M000005
       # paranoid=>false because we should ignore known_hosts, since AWS IPs get frequently recycled
