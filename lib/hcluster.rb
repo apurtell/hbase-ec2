@@ -1330,6 +1330,9 @@ module Hadoop
       # FIXME: add prompt.
       puts "Terminating ALL instances owned by you (owner_id=#{@@owner_id})."
 
+      @aws_connection or (@aws_connection = AWS::EC2::Base.new(:access_key_id=>ENV['AWS_ACCESS_KEY_ID'],:secret_access_key=>ENV['AWS_SECRET_ACCESS_KEY']))
+      @aws_connection or raise HClusterStateError,"Could not log you in to AWS: check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment."
+
       @aws_connection.describe_instances.reservationSet.item.each do |ec2_instance_set|
         ec2_instance_set.instancesSet.item.each {|instance|
           puts "terminating instance: #{instance.instanceId} (#{instance.imageId})"
