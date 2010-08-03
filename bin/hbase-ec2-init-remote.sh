@@ -36,6 +36,8 @@ NUM_SLAVES=$3
 EXTRA_PACKAGES=$4
 LOG_SETTING=$5
 
+echo "Setting debug setting to ${LOG_SETTING}."
+
 export JAVA_HOME=/usr/local/jdk1.6.0_20
 ln -s $JAVA_HOME /usr/local/jdk
 

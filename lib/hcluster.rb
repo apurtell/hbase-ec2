@@ -729,13 +729,22 @@ module Hadoop
       end
     end
     
-    def launch
+    def launch(options = {})
+      if options[:debug] == true
+        puts "running with debugging."
+        options = {
+          :stdout_handler => HCluster::echo_stdout,
+          :stderr_handler => HCluster::echo_stderr,
+          :hbase_debug_level => 'DEBUG'
+        }.merge(options)
+      end
+
       @state = "launching"
       
       init_hbase_cluster_secgroups
       launch_zookeepers
-      launch_master
-      launch_slaves
+      launch_master(options)
+      launch_slaves(options)
       if @launch_aux
         launch_aux
       end
@@ -939,8 +948,13 @@ module Hadoop
       trim(retval)
     end
     
-    def launch_master
-      options = {}
+    def launch_master(options = {})
+      options = {
+        :stdout_handler => HCluster::echo_stdout,
+        :stderr_handler => HCluster::echo_stderr,
+        :hbase_debug_level => 'DEBUG'
+      }.merge(options)
+
       options[:ami] = master_image['imageId'] 
       options[:min_count] = 1
       options[:max_count] = 1
@@ -948,11 +962,16 @@ module Hadoop
       options[:instance_type] = @master_instance_type
       options[:key_name] = @master_key_name
       options[:availability_zone] = @zone
-      @master = HCluster.do_launch(options,"master",lambda{|instances| setup_master(instances[0])})[0]
+      @master = HCluster.do_launch(options,"master",lambda{|instances| setup_master(instances[0],options[:init_debug],options[:hbase_debug_level])})[0]
     end
     
-    def launch_slaves
-      options = {}
+    def launch_slaves(options = {})
+      options = {
+        :stdout_handler => HCluster::echo_stdout,
+        :stderr_handler => HCluster::echo_stderr,
+        :hbase_debug_level => 'DEBUG'
+      }.merge(options)
+
       options[:ami] = regionserver_image['imageId']
       options[:min_count] = @num_regionservers
       options[:max_count] = @num_regionservers
@@ -960,7 +979,7 @@ module Hadoop
       options[:instance_type] = @rs_instance_type
       options[:key_name] = @rs_key_name
       options[:availability_zone] = @zone
-      @slaves = HCluster.do_launch(options,"rs",lambda{|instances|setup_slaves(instances)})
+      @slaves = HCluster.do_launch(options,"rs",lambda{|instances|setup_slaves(instances,options[:init_debug],options[:hbase_debug_level])})
     end
     
     def launch_aux
