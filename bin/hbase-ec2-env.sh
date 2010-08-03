@@ -34,12 +34,12 @@ EC2_CERT=
 EC2_ROOT_SSH_KEY=
 
 # The version of HBase to use.
-HBASE_VERSION=0.20-tm-2
+HBASE_VERSION=0.20-tm-3
 
 HBASE_URL=http://tm-files.s3.amazonaws.com/hbase/hbase-$HBASE_VERSION.tar.gz
 
 # The version of Hadoop to use.
-HADOOP_VERSION=0.20-tm-2
+HADOOP_VERSION=0.20-tm-3
 
 HADOOP_URL=http://tm-files.s3.amazonaws.com/hadoop/hadoop-$HADOOP_VERSION.tar.gz
 
