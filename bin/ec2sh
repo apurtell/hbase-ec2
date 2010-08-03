@@ -59,6 +59,7 @@ if ( ENV['AMAZON_ACCESS_KEY_ID'] && ENV['AMAZON_SECRET_ACCESS_KEY'] )
       :debug_level  (@@debug_level)
       :validate_images  (true)
       :security_group_prefix (hcluster)
+      :availability_zone (let AWS choose)
 
   MESSAGE
 

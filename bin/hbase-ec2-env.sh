@@ -34,21 +34,27 @@ EC2_CERT=
 EC2_ROOT_SSH_KEY=
 
 # The version of HBase to use.
-HBASE_VERSION=0.20.4
+HBASE_VERSION=0.20-tm-2
+
+HBASE_URL=http://tm-files.s3.amazonaws.com/hbase/hbase-$HBASE_VERSION.tar.gz
 
 # The version of Hadoop to use.
-HADOOP_VERSION=0.20.2
+HADOOP_VERSION=0.20-tm-2
+
+HADOOP_URL=http://tm-files.s3.amazonaws.com/hadoop/hadoop-$HADOOP_VERSION.tar.gz
+
+LZO_URL=http://tm-files.s3.amazonaws.com/hadoop/lzo-linux-$HADOOP_VERSION.tar.gz
 
 # The Amazon EC2 bucket for images
 REGION=us-east-1
 #REGION=us-west-1
 #REGION=eu-west-1
 #REGION=ap-southeast-1
-S3_BUCKET=apache-hbase-images-$REGION
+S3_BUCKET=tm-bundles
 # Account for bucket
 # We need this because S3 is returning account identifiers instead of bucket
 # names.
-S3_ACCOUNT=720040977164
+S3_ACCOUNT=801535628028
 
 # Enable public access web interfaces
 ENABLE_WEB_PORTS=false
@@ -98,18 +104,30 @@ CLUSTER_MASTER=$CLUSTER-master
 
 # Cached values for a given cluster
 MASTER_PRIVATE_IP_PATH=~/.hbase-private-$CLUSTER_MASTER
-MASTER_IP_PATH=~/.hbase-$CLUSTER_MASTER
+MASTER_IP_PATH=~/.hbase-ip-$CLUSTER_MASTER
+MASTER_ADDR_PATH=~/.hbase-addr-$CLUSTER_MASTER
 MASTER_ZONE_PATH=~/.hbase-zone-$CLUSTER_MASTER
 
 # The Zookeeper EC2 group name. CLUSTER is set by calling scripts.
 CLUSTER_ZOOKEEPER=$CLUSTER-zookeeper
-ZOOKEEPER_QUORUM_PATH=~/.hbase-quorum-$CLUSTER_ZOOKEEPER
+
+ZOOKEEPER_QUORUM_PATH=$HOME/.hbase-${CLUSTER_ZOOKEEPER}-quorum
+ZOOKEEPER_ADDR_PATH=$HOME/.hbase-${CLUSTER_ZOOKEEPER}-addrs
+
+# The auxiliary EC2 group. CLUSTER is set by calling scripts.
+CLUSTER_AUX=$CLUSTER-aux
+
+# Instances path
+SLAVE_INSTANCES_PATH=$HOME/.hbase-${CLUSTER}-slave-instances
+AUX_INSTANCES_PATH=$HOME/.hbase-${CLUSTER}-aux-instances
 
 # The script to run on instance boot.
 USER_DATA_FILE=hbase-ec2-init-remote.sh
 
 # The version number of the installed JDK.
 JAVA_VERSION=1.6.0_20
+
+JAVA_URL=http://tm-files.s3.amazonaws.com/jdk/jdk-${JAVA_VERSION}-linux-@arch@.bin
 
 # SUPPORTED_ARCHITECTURES = ['i386', 'x86_64']
 if [ "$SLAVE_INSTANCE_TYPE" = "m1.small" -o "$SLAVE_INSTANCE_TYPE" = "c1.medium" ]; then

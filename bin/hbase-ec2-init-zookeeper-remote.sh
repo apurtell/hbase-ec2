@@ -55,12 +55,12 @@ EOF
 # Start services
 
 # up open file descriptor limits
-echo "root soft nofile 32768" >> /etc/security/limits.conf
-echo "root hard nofile 32768" >> /etc/security/limits.conf
+echo "root soft nofile 65536" >> /etc/security/limits.conf
+echo "root hard nofile 65536" >> /etc/security/limits.conf
 
 # up epoll limits
 # ok if this fails, only valid for kernels 2.6.27+
-sysctl -w fs.epoll.max_user_instance=32768 > /dev/null 2>&1
+sysctl -w fs.epoll.max_user_instance=65536 > /dev/null 2>&1
 
 mkdir -p /mnt/hbase/logs
 mkdir -p /mnt/hbase/zk

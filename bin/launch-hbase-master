@@ -88,11 +88,12 @@ while true; do
   fi
   sleep 1
 done
-#rm -f "$bin"/$USER_DATA_FILE.master
+rm -f "$bin"/$USER_DATA_FILE.master
 
 # get public (elastic) hostname
 host=`ec2-describe-instances $TOOL_OPTS $inst | grep INSTANCE | grep running | grep $host | awk '{print $4}'`
 echo $host > $MASTER_ADDR_PATH
+addr=`ec2-describe-instances $TOOL_OPTS $inst | grep INSTANCE | grep running | grep $host | awk '{print $5}'`
 echo $addr > $MASTER_IP_PATH
 # get zone
 zone=`ec2-describe-instances $TOOL_OPTS $inst | grep INSTANCE | grep running | grep $host | awk '{print $11}'`
