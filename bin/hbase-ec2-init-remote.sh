@@ -534,18 +534,6 @@ cat > $HBASE_HOME/conf/hbase-site.xml <<EOF
   <value>15</value>
 </property>
 <property>
-  <name>dfs.replication</name>
-  <value>2</value>
-</property>
-<property>
-  <name>dfs.support.append</name>
-  <value>true</value>
-</property>
-<property>
-  <name>dfs.client.block.write.retries</name>
-  <value>20</value>
-</property>
-<property>
   <name>dfs.datanode.socket.write.timeout</name>
   <value>0</value>
 </property>
