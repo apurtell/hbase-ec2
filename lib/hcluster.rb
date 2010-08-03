@@ -164,7 +164,7 @@ module Hadoop
 
       image_creator_hostname = @image_creator.dnsName
       sh = "sh -c \"ARCH=#{arch} HBASE_VERSION=#{hbase_version} HADOOP_VERSION=#{hadoop_version} HBASE_FILE=#{@hbase_filename} HBASE_URL=#{@hbase_url} HADOOP_URL=#{@hadoop_url} LZO_URL=#{lzo_url} JAVA_URL=#{java_url} AWS_ACCOUNT_ID=#{@@owner_id} S3_BUCKET=#{@ami_s3} AWS_SECRET_ACCESS_KEY=#{ENV['AWS_SECRET_ACCESS_KEY']} AWS_ACCESS_KEY_ID=#{ENV['AWS_ACCESS_KEY_ID']} /mnt/create-hbase-image-remote\""
-      puts "sh: #{sh}"
+      puts "sh: #{sh}" if (debug == true)
 
       HCluster::ssh_to(image_creator_hostname,sh,
                        HCluster.image_output_handler(debug),
