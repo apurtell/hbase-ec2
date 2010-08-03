@@ -937,7 +937,8 @@ module Hadoop
       options[:instance_type] = @zk_instance_type
       options[:key_name] = @zk_key_name
       options[:availability_zone] = @zone
-      @zks = HCluster.do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks)})
+      @zks = HCluster.do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks,
+                                                                          options[:stdout_handler],options[:stderr_handler])})
     end
         
     def zookeeper_quorum
@@ -1006,8 +1007,8 @@ module Hadoop
     # note that default 'zks' argument is cluster's current set of zookeepers.
     # so calling e.g. "mycluster.setupzookeepers" with no arguments will cause
     # the zookeeper setup to re-run. The effect on any existing zookeeper processes
-    # depends on the specific behavior of t hbase-ec2-init-zookeeper-remote.sh.
-    def setup_zookeepers(zks = cluster.zks, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
+    # depends on the specific behavior of hbase-ec2-init-zookeeper-remote.sh.
+    def setup_zookeepers(zks = @zks, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
       #when zookeepers are ready, copy info over to them..
       #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
       HCluster::until_ssh_able(zks)
