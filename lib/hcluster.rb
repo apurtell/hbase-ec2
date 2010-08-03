@@ -962,7 +962,9 @@ module Hadoop
       options[:instance_type] = @master_instance_type
       options[:key_name] = @master_key_name
       options[:availability_zone] = @zone
-      @master = HCluster.do_launch(options,"master",lambda{|instances| setup_master(instances[0],options[:init_debug],options[:hbase_debug_level])})[0]
+      @master = HCluster.do_launch(options,"master",lambda{|instances| setup_master(instances[0],
+                                                                                    options[:stdout_handler],options[:stderr_handler],
+                                                                                    options[:hbase_debug_level])})[0]
     end
     
     def launch_slaves(options = {})
@@ -979,7 +981,9 @@ module Hadoop
       options[:instance_type] = @rs_instance_type
       options[:key_name] = @rs_key_name
       options[:availability_zone] = @zone
-      @slaves = HCluster.do_launch(options,"rs",lambda{|instances|setup_slaves(instances,options[:init_debug],options[:hbase_debug_level])})
+      @slaves = HCluster.do_launch(options,"rs",lambda{|instances|setup_slaves(instances,
+                                                                               options[:stdout_handler],options[:stderr_handler],
+                                                                               options[:hbase_debug_level])})
     end
     
     def launch_aux
