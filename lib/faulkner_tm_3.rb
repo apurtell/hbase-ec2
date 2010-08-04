@@ -6,7 +6,8 @@ class Faulkner < HCluster
 
   def launch(options{})
     options = {
-      :setup_kerberized_hbase => true
+      :setup_kerberized_hbase => true,
+      :debug => true
     }.merge(options)
   end
 
