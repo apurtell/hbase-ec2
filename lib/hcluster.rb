@@ -735,14 +735,15 @@ module Hadoop
         options = {
           :stdout_handler => HCluster::echo_stdout,
           :stderr_handler => HCluster::echo_stderr,
-          :hbase_debug_level => 'DEBUG'
+          :hbase_debug_level => 'DEBUG',
+          :kerberized => true
         }.merge(options)
       end
 
       @state = "launching"
       
       init_hbase_cluster_secgroups
-      launch_zookeepers
+      launch_zookeepers(options)
       launch_master(options)
       launch_slaves(options)
       if @launch_aux
@@ -757,6 +758,9 @@ module Hadoop
       #for portability, HCluster::run_test looks for /usr/local/hadoop/hadoop-test.jar.
       ssh("ln -s /usr/local/hadoop/hadoop-test-*.jar /usr/local/hadoop/hadoop-test.jar")
 
+      if options[:kerberized] == true
+        setup_kerberized_hbase
+      end
       @state = "running"
     end
     
@@ -938,9 +942,9 @@ module Hadoop
     
     def launch_zookeepers(options = {})
       options = {
-        :stdout_handler => HCluster::echo_stdout,
-        :stderr_handler => HCluster::echo_stderr,
-        :hbase_debug_level => 'DEBUG',
+        :stdout_handler => HCluster::summarize_stdout,
+        :stderr_handler => HCluster::summarize_stderr,
+        :hbase_debug_level => 'INFO',
         :extra_packages => ""
       }.merge(options)
 
@@ -965,9 +969,9 @@ module Hadoop
     
     def launch_master(options = {})
       options = {
-        :stdout_handler => HCluster::echo_stdout,
-        :stderr_handler => HCluster::echo_stderr,
-        :hbase_debug_level => 'DEBUG',
+        :stdout_handler => HCluster::summarize_stdout,
+        :stderr_handler => HCluster::summarize_stderr,
+        :hbase_debug_level => 'INFO',
         :extra_packages => ""
       }.merge(options)
 
@@ -987,9 +991,9 @@ module Hadoop
     
     def launch_slaves(options = {})
       options = {
-        :stdout_handler => HCluster::echo_stdout,
-        :stderr_handler => HCluster::echo_stderr,
-        :hbase_debug_level => 'DEBUG',
+        :stdout_handler => HCluster::summarize_stdout,
+        :stderr_handler => HCluster::summarize_stderr,
+        :hbase_debug_level => 'INFO',
         :extra_packages => ''
       }.merge(options)
 
