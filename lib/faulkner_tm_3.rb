@@ -4,7 +4,7 @@ module Hadoop
 
 class Faulkner < HCluster
 
-  def launch(options{})
+  def launch(options = {})
     options = {
       :setup_kerberized_hbase => true,
       :debug => true
