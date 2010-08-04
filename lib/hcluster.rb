@@ -735,8 +735,7 @@ module Hadoop
         options = {
           :stdout_handler => HCluster::echo_stdout,
           :stderr_handler => HCluster::echo_stderr,
-          :hbase_debug_level => 'DEBUG',
-          :kerberized => true
+          :hbase_debug_level => 'DEBUG'
         }.merge(options)
       end
 
