@@ -760,6 +760,14 @@ module Hadoop
       @state = "running"
     end
     
+    def setup_kerberized_hbase
+      ssh("cd /usr/local/hadoop-*; kinit -k -t conf/nn.keytab hadoop/#{master.privateDnsName.downcase}; bin/hadoop fs -mkdir /hbase; bin/hadoop fs -chown hbase /hbase")
+      ssh("/usr/local/hbase-*/bin/hbase-daemon.sh start master")
+      slaves.each {|slave|
+        ssh_to(slave.dnsName, "/usr/local/hbase-*/bin/hbase-daemon.sh start regionserver")
+      }
+    end
+
     def init_hbase_cluster_secgroups
       # create security groups if necessary.
       groups = describe_security_groups
