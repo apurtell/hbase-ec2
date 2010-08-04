@@ -3,11 +3,11 @@ require 'hcluster.rb'
 module Hadoop
 
 class Faulkner < HCluster
-  def initialize(options = {} )
+
+  def launch(options{})
     options = {
       :setup_kerberized_hbase => true
     }.merge(options)
-    super(options)
   end
 
   def test()
