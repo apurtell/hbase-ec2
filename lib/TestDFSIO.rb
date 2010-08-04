@@ -1,4 +1,4 @@
-# require 'hcluster'
+require 'hcluster'
 
 module Hadoop
 
