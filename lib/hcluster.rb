@@ -8,6 +8,14 @@ require 'net/scp'
 require 'AWS'
 require 'aws/s3'
 
+def pretty_print(hash)
+  retval = ""
+  hash.keys.each{|key|
+    retval = retval + " :#{key} => #{hash[key]}\n"
+  }
+  return retval
+end
+
 module Hadoop
 
   class Himage < AWS::EC2::Base
