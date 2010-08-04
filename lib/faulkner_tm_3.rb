@@ -1,4 +1,4 @@
-# require 'hcluster'
+require 'hcluster.rb'
 
 module Hadoop
 
