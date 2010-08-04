@@ -14,8 +14,9 @@ class Faulkner < HCluster
     ssh("mkdir -p faulkner/lib")
     scp("#{ENV['HOME']}/hbase-ec2/faulkner/faulkner.rb","faulkner")
     scp("#{ENV['HOME']}/hbase-ec2/faulkner/lib/distributions.rb","faulkner/lib")
+    scp("#{ENV['HOME']}/hbase-ec2/faulkner/lib/histogram.rb","faulkner/lib")
     scp("#{ENV['HOME']}/hbase-ec2/faulkner/lib/uuid.rb","faulkner/lib")
-    ssh("hbase shell /root/faulkner/faulkner.rb")
+    ssh("/usr/local/hbase/bin/hbase shell /root/faulkner/faulkner.rb")
   end
 end
 
