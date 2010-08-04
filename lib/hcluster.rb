@@ -1366,7 +1366,7 @@ module Hadoop
     #Except that unix "scp" will not supply a default host, but we  will use cluster.dnsName
     #as the default host.
     #FIXME: implement (-r)ecursive support.
-    def scp(local_path,remote_path)
+    def scp(local_path,remote_path = "#{dnsName}:")
       if  /([^:]+):(.*)/.match(remote_path)
         host                     = /([^:]+):(.*)/.match(remote_path)[1]
         remote_path_without_host = /([^:]+):(.*)/.match(remote_path)[2]
