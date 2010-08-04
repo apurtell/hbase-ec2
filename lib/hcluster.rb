@@ -1511,6 +1511,14 @@ module Hadoop
       }
     end
     
+    def HCluster.summarize_stdout
+      HCluster.summarize_output
+    end
+
+    def HCluster.summarize_stderr
+      HCluster.summarize_output
+    end
+
     def HCluster.summarize_output
       #output one '.' per line.
       return lambda{|line,channel|
