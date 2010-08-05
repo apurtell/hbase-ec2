@@ -342,7 +342,6 @@ module Hadoop
       puts "   :debug_level  (@@debug_level)"
       puts "   :validate_images  (true)"
       puts "   :security_group_prefix (hcluster)"
-      puts "   :availability_zone (us-east-1c)"
       puts ""
       puts "Himage.list shows a list of possible :label values."
     end
@@ -353,6 +352,11 @@ module Hadoop
         #not enough info to create cluster: show documentation.
         initialize_print_usage
         return nil
+      end
+
+      if options[:availability_zone]
+        puts " ignoring :availability_zone - please pass to launch() instead."
+        options.delete(:availability_zone)
       end
 
       options = {
@@ -367,7 +371,6 @@ module Hadoop
         :debug_level => @@debug_level,
         :validate_images => true,
         :security_group_prefix => "hcluster",
-        :availability_zone => "us-east-1c"
       }.merge(options)
 
       
@@ -484,10 +487,7 @@ module Hadoop
       @slaves = []
       @aux = nil
       @ssh_input = []
-      
-      @zone = options[:availability_zone]
-      
-      #images
+            
       @zk_image_label = options[:zk_image_label]
       @master_image_label = options[:master_image_label]
       @slave_image_label = options[:slave_image_label]
@@ -736,6 +736,15 @@ module Hadoop
         @@clusters[name] = HCluster.new(name)
       end
     end
+
+    def HCluster::launch_usage
+      puts ""
+      puts "HCluster.launch usage"
+      puts "  options: (description) (default, if any)"
+      puts "   :hbase_debug_level ('DEBUG')"
+      puts "   :availability_zone ('us-east-1c')"
+      puts ""
+    end
     
     def launch(options = {})
       if options[:debug] == true
@@ -743,9 +752,12 @@ module Hadoop
         options = {
           :stdout_handler => HCluster::echo_stdout,
           :stderr_handler => HCluster::echo_stderr,
-          :hbase_debug_level => 'DEBUG'
+          :hbase_debug_level => 'DEBUG',
+          :availability_zone => "us-east-1c"
         }.merge(options)
       end
+ 
+      @zone = options[:availability_zone]
 
       @state = "launching"
       
