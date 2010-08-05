@@ -1083,7 +1083,7 @@ module Hadoop
                        "[setup:master:#{master.dnsName}","]\n")
     end
     
-    def setup_slaves(slaves, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output,
+    def setup_slaves(slaves = @slaves, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output,
                      extra_packages = "", debug_level = "DEBUG")
       init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
       #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
