@@ -7,7 +7,6 @@ class Faulkner < HCluster
   def launch(options = {})
     super({
             :kerberized => true,
-            :hbase_debug_level => true
           }.merge(options))
   end
 
