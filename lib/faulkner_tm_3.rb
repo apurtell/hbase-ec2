@@ -5,10 +5,10 @@ module Hadoop
 class Faulkner < HCluster
 
   def launch(options = {})
-    super.launch({
-                   :kerberized => true,
-                   :hbase_debug_level => true
-                 }.merge(options)
+    super({
+            :kerberized => true,
+            :hbase_debug_level => true
+          }.merge(options))
   end
 
   def test()
