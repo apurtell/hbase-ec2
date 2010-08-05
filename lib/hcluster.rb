@@ -963,7 +963,9 @@ module Hadoop
       options[:key_name] = @zk_key_name
       options[:availability_zone] = @zone
       @zks = HCluster.do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks,
-                                                                          options[:stdout_handler],options[:stderr_handler])})
+                                                                          options[:stdout_handler],
+                                                                          options[:stderr_handler],
+                                                                          options[:hbase_debug_level])})
     end
         
     def zookeeper_quorum
@@ -1012,7 +1014,8 @@ module Hadoop
       options[:key_name] = @rs_key_name
       options[:availability_zone] = @zone
       @slaves = HCluster.do_launch(options,"rs",lambda{|instances|setup_slaves(instances,
-                                                                               options[:stdout_handler],options[:stderr_handler],
+                                                                               options[:stdout_handler],
+                                                                               options[:stderr_handler],
                                                                                options[:extra_packages],
                                                                                options[:hbase_debug_level])})
     end
@@ -1033,7 +1036,7 @@ module Hadoop
     # so calling e.g. "mycluster.setupzookeepers" with no arguments will cause
     # the zookeeper setup to re-run. The effect on any existing zookeeper processes
     # depends on the specific behavior of hbase-ec2-init-zookeeper-remote.sh.
-    def setup_zookeepers(zks = @zks, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output)
+    def setup_zookeepers(zks = @zks, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output, debug_level = "INFO")
       #when zookeepers are ready, copy info over to them..
       #for each zookeeper, copy ~/hbase-ec2/bin/hbase-ec2-init-zookeeper-remote.sh to zookeeper, and run it.
       HCluster::until_ssh_able(zks)
@@ -1059,7 +1062,7 @@ module Hadoop
     end
 
     def setup_master(master = @master, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output,
-                     extra_packages = "", debug_level = "DEBUG")
+                     extra_packages = "", debug_level = "INFO")
       #set cluster's dnsName to that of master.
       @dnsName = master.dnsName
       @master = master
@@ -1078,13 +1081,16 @@ module Hadoop
       HCluster::scp_to(master.dnsName,init_script,"/root/#{@@remote_init_script}")
       HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
       # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
+      puts "<MASTER INIT>"
+      puts "sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} \"#{extra_packages}\" #{debug_level}"
+      puts "</MASTER INIT>"
       HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} \"#{extra_packages}\" #{debug_level}",
                        stdout_handler,stderr_handler,
                        "[setup:master:#{master.dnsName}","]\n")
     end
     
     def setup_slaves(slaves = @slaves, stdout_handler = HCluster::summarize_output, stderr_handler = HCluster::summarize_output,
-                     extra_packages = "", debug_level = "DEBUG")
+                     extra_packages = "", debug_level = "INFO")
       init_script = File.dirname(__FILE__) +"/../bin/#{@@remote_init_script}"
       #FIXME: requires that both master (master.dnsName) and zookeeper (zookeeper_quorum) to have come up.
       HCluster::until_ssh_able(slaves)
@@ -1097,9 +1103,13 @@ module Hadoop
         
         HCluster::scp_to(slave.dnsName,init_script,"/root/#{@@remote_init_script}")
         HCluster::ssh_to(slave.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
+        puts "<SLAVE INIT>"
+        puts "sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} \"#{extra_packages}\" #{debug_level}"
+        puts "</SLAVE INIT>"
         HCluster::ssh_to(slave.dnsName,"sh /root/#{@@remote_init_script} #{@master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} \"#{extra_packages}\" #{debug_level}",
                          stdout_handler,stderr_handler,
                          "[setup:rs:#{slave.dnsName}","]\n")
+
       }
     end
     

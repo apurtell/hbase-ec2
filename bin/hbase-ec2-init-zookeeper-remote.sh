@@ -24,6 +24,10 @@
 # the just-started zookeeper's setup to look like,
 # using Whirr, Chef, Puppet, or some combination thereof.
 
+# FIXME: allow input of LOG_SETTING (one of {'INFO','DEBUG',...}) 
+# to configure zookeeper log output level, 
+# as (see how hbase-ec2-init-remote.sh does it).
+
 # ZOOKEEPER_QUORUM must be set in the environment by the caller.
 HBASE_HOME=`ls -d /usr/local/hbase-* | grep -v tar.gz | head -n1`
 set -x

@@ -610,9 +610,18 @@ export JAVA_HOME=/usr/local/jdk
 export HBASE_MASTER_OPTS="-Xmx1000m -XX:+UseConcMarkSweepGC -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-master-gc.log"
 export HBASE_REGIONSERVER_OPTS="-Xmx2000m -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=88 -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-regionserver-gc.log"
 EOF
+
+echo "SETTING LOG LEVEL TO '$LOG_SETTING'"
+
 # Configure log4j
-sed -i -e "s/hadoop.hbase=DEBUG/hadoop.hbase=$5/g" \
+sed -i -e "s/hadoop.hbase=DEBUG/hadoop.hbase=$LOG_SETTING/g" \
     $HBASE_HOME/conf/log4j.properties
+
+echo "NOW THE log4j.properties IS SET TO :"
+echo "========" 
+cat $HBASE_HOME/conf/log4j.properties
+echo "========"
+
 # Configure HBase for Ganglia
 cat > $HBASE_HOME/conf/hadoop-metrics.properties <<EOF
 dfs.class=org.apache.hadoop.metrics.ganglia.GangliaContext
