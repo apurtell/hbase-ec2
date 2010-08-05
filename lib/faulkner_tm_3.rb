@@ -17,6 +17,7 @@ class Faulkner < HCluster
     scp("#{ENV['HOME']}/hbase-ec2/faulkner/lib/distributions.rb","faulkner/lib")
     scp("#{ENV['HOME']}/hbase-ec2/faulkner/lib/histogram.rb","faulkner/lib")
     scp("#{ENV['HOME']}/hbase-ec2/faulkner/lib/uuid.rb","faulkner/lib")
+    ssh("mkdir -p /root/logs")
     ssh("sh /root/faulkner/webtable.sh")
   end
 end
