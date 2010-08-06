@@ -64,49 +64,37 @@ module Hadoop
 
     def Himage::list(options = {})
       options = {
-        :all => false
+        :all => false,
+        :output_fn => lambda{|line|
+          puts line
+        }
       }.merge(options)
 
-      #for now, handle only option[:all] locally: 
-      #eventually, migrate all HCluster.my_images 
-      #into here.
-      if options[:all] == true
-        options = {
-          :output_fn => lambda{|line|
-            puts line
-          }
-        }.merge(options)
 
-        imgs = nil
-
-        if options[:label]
-          imgs = describe_images(options)
-        else
-          imgs = HCluster.describe_images(options).imagesSet.item
-        end
-
-        if options[:output_fn]
-          if (imgs)
-
-            options.output_fn.call "label\t\t\t\tami\t\t\towner_id\t\t\tregion"
-            options.output_fn.call "========================================================================="
-            debug = false
-            imgs.each {|image| 
-              if debug == true
-                puts "#{pretty_print(image)}"
-              end
-              options.output_fn.call "#{image.name}\t\t#{image.imageId}\t\t#{image.imageOwnerId}\t\t#{image.region}"
-            }
-            options.output_fn.call ""
-            return nil
-          end
-        end
-
-        return imgs
-
+      if options[:label]
+        imgs = describe_images(options)
       else
-        HCluster.my_images
+        imgs = HCluster.describe_images(options).imagesSet.item
       end
+
+      if options[:output_fn]
+        if (imgs)
+          options.output_fn.call "label\t\t\t\tami\t\t\towner_id\t\t\tregion"
+          options.output_fn.call "========================================================================="
+          debug = false
+          imgs.each {|image| 
+            if debug == true
+              puts "#{pretty_print(image)}"
+            end
+            options.output_fn.call "#{image.name}\t\t#{image.imageId}\t\t#{image.imageOwnerId}\t\t#{image.region}"
+          }
+          options.output_fn.call ""
+          return nil
+        end
+      end
+
+      return imgs
+
     end
 
     def initialize_himage_usage
@@ -585,12 +573,6 @@ module Hadoop
       # @zk_instance_type = "m1.large"
       # @rs_instance_type = "m1.large"
       # @master_instance_type = "m1.large"
-      
-      #ssh keys
-      @zk_key_name = "root"
-      @rs_key_name = "root"
-      @master_key_name = "root"
-      
       @state = "Initialized"
       
       sync
@@ -797,17 +779,22 @@ module Hadoop
       puts "  options: (description) (default, if any)"
       puts "   :hbase_debug_level ('DEBUG')"
       puts "   :availability_zone ('us-east-1c')"
+      puts "   :key_name ('root')"
       puts ""
     end
     
     def launch(options = {})
+
+      options = {
+        :key_name => "root"
+      }.merge(options)
+
       if options[:debug] == true
         puts "running with debugging."
         options = {
           :stdout_handler => HCluster::echo_stdout,
           :stderr_handler => HCluster::echo_stderr,
-          :hbase_debug_level => 'DEBUG',
-          :availability_zone => "us-east-1c"
+          :hbase_debug_level => 'DEBUG'
         }.merge(options)
       end
  
@@ -820,7 +807,7 @@ module Hadoop
       launch_master(options)
       launch_slaves(options)
       if @launch_aux
-        launch_aux
+        launch_aux(options)
       end
       
       # if threaded, we would set to "pending" and then 
@@ -883,6 +870,7 @@ module Hadoop
                                 :group_name => "#{@security_group_prefix}",
                                 :group_description => "Group for HBase Slaves."
                               })
+        puts "..done"
       end
       
       if (found_master == false) 
