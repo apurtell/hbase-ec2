@@ -48,7 +48,7 @@ module Hadoop
     end
 
     def list
-      HCluster.my_images
+      Himage::list
     end
 
     def Himage::s3
