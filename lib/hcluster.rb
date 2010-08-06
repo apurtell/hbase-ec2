@@ -62,13 +62,49 @@ module Hadoop
 
     def Himage::list(options = {})
       options = {
-        :all => false,
-        :region => 'us-east-1'
+        :all => false
       }.merge(options)
 
-      puts "options were: \n#{pretty_print(options)}"
+      #for now, handle only option[:all] locally: 
+      #eventually, migrate all HCluster.my_images 
+      #into here.
+      if options[:all] == true
+        options = {
+          :output_fn => lambda{|line|
+            puts line
+          }
+        }.merge(options)
 
-      HCluster.my_images
+        imgs = nil
+
+        if options[:label]
+          imgs = describe_images(options)
+        else
+          imgs = HCluster.describe_images(options).imagesSet.item
+        end
+
+        if options[:output_fn]
+          if (imgs)
+
+            options.output_fn.call "label\t\t\t\tami\t\t\towner_id\t\t\tregion"
+            options.output_fn.call "========================================================================="
+            debug = false
+            imgs.each {|image| 
+              if debug == true
+                puts "#{pretty_print(image)}"
+              end
+              options.output_fn.call "#{image.name}\t\t#{image.imageId}\t\t#{image.imageOwnerId}\t\t#{image.region}"
+            }
+            options.output_fn.call ""
+            return nil
+          end
+        end
+
+        return imgs
+
+      else
+        HCluster.my_images
+      end
     end
 
     def initialize_himage_usage
@@ -219,33 +255,33 @@ module Hadoop
       return Himage.describe_images(options,false)
     end
 
-    def describe_images(options = {})
-      options = {
-        :owner_id => @@owner_id
-        }.merge(options)
-      return Himage.describe_images(options,false)
-    end
-
     def Himage.describe_images(options = {},search_all_visible_images = true)
       image_label = options[:label]
+      options.delete(:label)
+
       if image_label
-        options = {
-          :owner_id => @@owner_id
-        }.merge(options)
+        if !(options[:all] == true)
+          options = {
+            :owner_id => @@owner_id
+          }.merge(options)
+        end
 
         retval = @@shared_base_object.describe_images(options)
         #filter by image_label
         if image_label
-          retval2 = retval['imagesSet']['item'].detect{
-            |image| image['name'] == image_label
-          }
+
+          retval2 = retval['imagesSet']['item'].collect{|image| 
+            if (image.name == image_label)
+              image
+            end
+          }.compact
         else
           retval2 = retval['imagesSet']['item'].detect{
             |image| image['image_id'] == options[:image_id]
           }
         end
-        
-        if (retval2 == nil and search_all_visible_images == true)
+
+        if ((retval2 == nil) && (search_all_visible_images == true))
           options.delete(:owner_id)
           puts "image named '#{image_label}' not found in owner #{@@owner_id}'s images; looking in all images (may take a while..)"
           retval = @@shared_base_object.describe_images(options)
@@ -254,7 +290,7 @@ module Hadoop
             |image| image['name'] == image_label
           }
         end
-        retval2
+        return retval2
       else
         @@shared_base_object.describe_images(options)
       end
