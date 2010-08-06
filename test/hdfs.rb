@@ -4,17 +4,14 @@ require 'test/unit'
 $:.unshift File.join(File.dirname(__FILE__),"..", "lib")
 require 'TestDFSIO.rb'
 
-def dump_hash(hash)
-  hash.keys.each { |key|
-    puts "#{key} => #{hash[key]}"
-  }
-end
+include Hadoop
 
 class TestHCluster < Test::Unit::TestCase
   @@security_group = "hdfs"
   @@num_zookeepers = 1
   @@num_regionservers = 3
-  @@cluster = HCluster::TestDFSIO.new({:security_group_prefix => @@security_group,
+  @@cluster = HCluster::TestDFSIO.new({:ami => 'ami-b4739bdd',
+                                        :security_group_prefix => @@security_group,
                                         :num_zookeepers => @@num_zookeepers,
                                         :num_regionservers => @@num_regionservers})
 
@@ -28,7 +25,7 @@ class TestHCluster < Test::Unit::TestCase
 
   def test_run
     status = @@cluster.status
-    dump_hash(status)
+    pretty_print(status)
     assert("running" == status['state'])
     launchTime = status['launchTime']
     # second part of this disjunction is indended to only be true if launchTime is
@@ -44,8 +41,14 @@ class TestHCluster < Test::Unit::TestCase
     #FIX: add some tests for master..
 
     test_results = @@cluster.test
+
+    puts "test results: #{pretty_print(test_results['pairs'])}"
+
     assert(0 < test_results.size)
-    assert(10000 == test_results['Total MBytes processed'])
+
+    puts "checking total megabytes processed (should be 10000)..."
+
+    assert(10000 == test_results['pairs']['Total MBytes processed'].to_i)
   end
   
 end

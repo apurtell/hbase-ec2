@@ -60,7 +60,14 @@ module Hadoop
       puts "done."
     end
 
-    def Himage::list
+    def Himage::list(options = {})
+      options = {
+        :all => false,
+        :region => 'us-east-1'
+      }.merge(options)
+
+      puts "options were: \n#{pretty_print(options)}"
+
       HCluster.my_images
     end
 
@@ -663,20 +670,24 @@ module Hadoop
     end
 
     def HCluster.search_images(options = nil)
-      #FIXME: figure out fixed width/truncation for pretty printing tables.
       if options == nil || options.size == 0
         search_images_usage
         return nil
       end
 
+      #FIXME: figure out fixed width/truncation for pretty printing tables.
       #if no ami, set owner_id to HCluster owner.
       if options[:ami]
         search_all_visible_images = true
       else
-        search_all_visible_images = false
-        options = {
-          :owner_id => @@owner_id,
-        }.merge(options)
+        if options[:label]
+          search_all_visible_images = true
+        else
+          search_all_visible_images = false
+          options = {
+            :owner_id => @@owner_id,
+          }.merge(options)
+        end
       end
 
       options = {
@@ -684,7 +695,6 @@ module Hadoop
           puts line
         }
       }.merge(options)
-
 
       begin
         imgs = HCluster.describe_images(options).imagesSet.item
