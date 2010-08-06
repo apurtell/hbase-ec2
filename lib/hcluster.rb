@@ -1019,7 +1019,8 @@ module Hadoop
         :stdout_handler => HCluster::summarize_stdout,
         :stderr_handler => HCluster::summarize_stderr,
         :hbase_debug_level => 'INFO',
-        :extra_packages => ""
+        :extra_packages => "",
+        :key_name => "root"
       }.merge(options)
 
       options[:ami] = zk_image['imageId']
@@ -1027,7 +1028,6 @@ module Hadoop
       options[:max_count] = @num_zookeepers
       options[:security_group] = @zk_security_group
       options[:instance_type] = @zk_instance_type
-      options[:key_name] = @zk_key_name
       options[:availability_zone] = @zone
       @zks = HCluster.do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks,
                                                                           options[:stdout_handler],
@@ -1048,7 +1048,8 @@ module Hadoop
         :stdout_handler => HCluster::summarize_stdout,
         :stderr_handler => HCluster::summarize_stderr,
         :hbase_debug_level => 'INFO',
-        :extra_packages => ""
+        :extra_packages => "",
+        :key_name => "root"
       }.merge(options)
 
       options[:ami] = master_image['imageId'] 
@@ -1056,7 +1057,6 @@ module Hadoop
       options[:max_count] = 1
       options[:security_group] = @master_security_group
       options[:instance_type] = @master_instance_type
-      options[:key_name] = @master_key_name
       options[:availability_zone] = @zone
 
       @master = HCluster.do_launch(options,"master",lambda{|instances| setup_master(instances[0],
@@ -1070,7 +1070,8 @@ module Hadoop
         :stdout_handler => HCluster::summarize_stdout,
         :stderr_handler => HCluster::summarize_stderr,
         :hbase_debug_level => 'INFO',
-        :extra_packages => ''
+        :extra_packages => '',
+        :key_name => "root"
       }.merge(options)
 
       options[:ami] = regionserver_image['imageId']
@@ -1078,7 +1079,6 @@ module Hadoop
       options[:max_count] = @num_regionservers
       options[:security_group] = @rs_security_group
       options[:instance_type] = @rs_instance_type
-      options[:key_name] = @rs_key_name
       options[:availability_zone] = @zone
       @slaves = HCluster.do_launch(options,"rs",lambda{|instances|setup_slaves(instances,
                                                                                options[:stdout_handler],
@@ -1088,13 +1088,14 @@ module Hadoop
     end
     
     def launch_aux
-      options = {}
+      options = {
+        :key_name => "root"
+      }.merge(options)
       options[:ami] = regionserver_image['imageId']
       options[:min_count] = 1
       options[:max_count] = 1
       options[:security_group] = @aux_security_group
       options[:instance_type] = @rs_instance_type
-      options[:key_name] = @rs_key_name
       options[:availability_zone] = @zone
       @aux = do_launch(options,"aux",lambda{|instances|setup_aux(instances[0])})[0]
     end
