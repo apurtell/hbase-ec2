@@ -874,6 +874,7 @@ module Hadoop
                                 :group_name => "#{@security_group_prefix}-aux",
                                 :group_description => "Group for HBase Auxiliaries."
                               })
+        puts "..done"
       end
       
       if (found_rs == false) 
