@@ -305,6 +305,8 @@ module Hadoop
   EC2_ROOT_SSH_KEY = ENV['EC2_ROOT_SSH_KEY'] ? "#{ENV['EC2_ROOT_SSH_KEY']}" : "#{ENV['HOME']}/.ec2/root.pem"
   EC2_CERT = ENV['EC2_CERT'] ? "#{ENV['EC2_CERT']}" : "#{ENV['HOME']}/.ec2/cert.pem"
     
+  puts "using #{EC2_ROOT_SSH_KEY} as ssh key."
+
   class HClusterStateError < StandardError
   end
 
