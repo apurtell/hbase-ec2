@@ -8,6 +8,8 @@ require 'net/scp'
 require 'AWS'
 require 'aws/s3'
 
+ROOT_DIR   = File.dirname(__FILE__) + '/..'
+
 def pretty_print(hash)
   retval = ""
   hash.keys.each{|key|
@@ -158,9 +160,9 @@ module Hadoop
       HCluster::until_ssh_able([@image_creator])
       image_creator_hostname = @image_creator.dnsName
       puts "Copying scripts."
-      HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/functions.sh","/mnt")
-      HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/create-hbase-image-remote","/mnt")
-      HCluster::scp_to(image_creator_hostname,"#{ENV['HOME']}/hbase-ec2/bin/image/ec2-run-user-data","/etc/init.d")
+      HCluster::scp_to(image_creator_hostname,"#{ROOT_DIR}/bin/functions.sh","/mnt")
+      HCluster::scp_to(image_creator_hostname,"#{ROOT_DIR}/bin/image/create-hbase-image-remote","/mnt")
+      HCluster::scp_to(image_creator_hostname,"#{ROOT_DIR}/bin/image/ec2-run-user-data","/etc/init.d")
       
       # Copy private key and certificate (for bundling image)
       HCluster::scp_to(image_creator_hostname, EC2_ROOT_SSH_KEY, "/mnt")
@@ -1145,7 +1147,7 @@ module Hadoop
       HCluster::ssh_to(dnsName,"chmod 600 /root/.ssh/id_rsa",HCluster::consume_output,HCluster::consume_output,nil,nil)
       # </ssh key>
       
-      init_script = "#{ENV['HOME']}/hbase-ec2/bin/#{@@remote_init_script}"
+      init_script = "#{ROOT_DIR}/bin/#{@@remote_init_script}"
       HCluster::scp_to(dnsName,init_script,"/root/#{@@remote_init_script}")
       HCluster::ssh_to(dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
       HCluster::ssh_to(dnsName,"sh /root/#{@@remote_init_script} #{@master.privateDnsName} \"#{zookeeper_quorum}\" #{@num_regionservers}",
@@ -1581,7 +1583,7 @@ module Hadoop
 
     def HCluster.label_to_hbase_version(label)
       begin
-        /(hbase|hadoop)-([0-9]+\.[0-9]+((\.)([0-9]+)|(\-tm-[0-9]+)))/.match(label)[2]
+        /(hbase|hadoop)-([\w\.\-]+?)(-SNAPSHOT)?(x86_64|i386|\.tar\.gz)/.match(label)[2]
       rescue NoMethodError
         "could not convert label: '#{label}' to an hbase version."
       end

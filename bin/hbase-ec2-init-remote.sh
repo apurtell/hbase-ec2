@@ -177,7 +177,8 @@ cat > /etc/krb5.conf <<EOF
  default_realm = HADOOP.LOCALDOMAIN
  dns_lookup_realm = false
  dns_lookup_kdc = false
- ticket_lifetime = 24h
+ ticket_lifetime = 1d
+ renew_lifetime = 7d
  forwardable = yes
  proxiable = yes
  udp_preference_limit = 1
