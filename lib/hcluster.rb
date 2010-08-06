@@ -1140,10 +1140,8 @@ module Hadoop
       HCluster::ssh_to(master.dnsName,"chmod 700 /root/#{@@remote_init_script}",HCluster::consume_output,HCluster::consume_output,nil,nil)
       # NOTE : needs zookeeper quorum: requires zookeeper to have come up.
       if debug_level == "DEBUG"
-        puts "<MASTER INIT>"
         puts "sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} \"#{extra_packages}\" #{debug_level}"
       end
-      puts "</MASTER INIT>"
       HCluster::ssh_to(master.dnsName,"sh /root/#{@@remote_init_script} #{master.dnsName} \"#{zookeeper_quorum}\" #{@num_regionservers} \"#{extra_packages}\" #{debug_level}",
                        stdout_handler,stderr_handler,
                        "[setup:master:#{master.dnsName}","]\n")
