@@ -786,11 +786,6 @@ module Hadoop
     end
     
     def launch(options = {})
-
-      options = {
-        :key_name => "root"
-      }.merge(options)
-
       if options[:debug] == true
         puts "running with debugging."
         options = {
@@ -1009,8 +1004,7 @@ module Hadoop
         :stdout_handler => HCluster::summarize_stdout,
         :stderr_handler => HCluster::summarize_stderr,
         :hbase_debug_level => 'INFO',
-        :extra_packages => "",
-        :key_name => "root"
+        :extra_packages => ""
       }.merge(options)
 
       options[:ami] = zk_image['imageId']
@@ -1038,8 +1032,7 @@ module Hadoop
         :stdout_handler => HCluster::summarize_stdout,
         :stderr_handler => HCluster::summarize_stderr,
         :hbase_debug_level => 'INFO',
-        :extra_packages => "",
-        :key_name => "root"
+        :extra_packages => ""
       }.merge(options)
 
       options[:ami] = master_image['imageId'] 
@@ -1060,8 +1053,7 @@ module Hadoop
         :stdout_handler => HCluster::summarize_stdout,
         :stderr_handler => HCluster::summarize_stderr,
         :hbase_debug_level => 'INFO',
-        :extra_packages => '',
-        :key_name => "root"
+        :extra_packages => ''
       }.merge(options)
 
       options[:ami] = regionserver_image['imageId']
@@ -1078,9 +1070,6 @@ module Hadoop
     end
     
     def launch_aux
-      options = {
-        :key_name => "root"
-      }.merge(options)
       options[:ami] = regionserver_image['imageId']
       options[:min_count] = 1
       options[:max_count] = 1
