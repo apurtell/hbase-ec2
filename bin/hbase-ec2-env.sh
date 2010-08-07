@@ -50,7 +50,7 @@ REGION=us-east-1
 #REGION=us-west-1
 #REGION=eu-west-1
 #REGION=ap-southeast-1
-S3_BUCKET=tm-bundles
+S3_BUCKET=tm-bundles-$REGION
 # Account for bucket
 # We need this because S3 is returning account identifiers instead of bucket
 # names.
