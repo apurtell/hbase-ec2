@@ -115,8 +115,18 @@ cd /usr/local/hadoop-${HADOOP_VERSION} && tar xzf /tmp/lzo-linux-${HADOOP_VERSIO
 cd /usr/local/hbase-${HBASE_VERSION} && tar xzf /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
 rm -f /tmp/lzo-linux-${HADOOP_VERSION}.tar.gz
 
-echo "ln -s hadoop-core-${HADOOP_VERSION}.jar hadoop-core.jar"
-ln -s hadoop-core-${HADOOP_VERSION}.jar hadoop-core.jar
+#Make symlinks to .jars for portability of automation on this instance.
+#[root@domU-12-31-39-0A-34-12 hadoop]# ls -l *.jar
+#-rw-rw-r-- 1 root root    6832 Jun 30 18:04 hadoop-ant-0.20-tm-2.jar
+#-rw-rw-r-- 1 root root 2717619 Jun 30 18:05 hadoop-core-0.20-tm-2.jar
+#lrwxrwxrwx 1 root root      25 Jul  6 23:27 hadoop-core.jar -> hadoop-core-0.20-tm-2.jar
+#-rw-rw-r-- 1 root root  142543 Jun 30 18:04 hadoop-examples-0.20-tm-2.jar
+#-rw-rw-r-- 1 root root 1644811 Jun 30 18:05 hadoop-test-0.20-tm-2.jar
+#lrwxrwxrwx 1 root root      25 Jul  6 22:54 hadoop-test.jar -> hadoop-test-0.20-tm-2.jar
+#-rw-rw-r-- 1 root root   69935 Jun 30 18:04 hadoop-tools-0.20-tm-2.jar
+
+# fix above : add all symlinks.
+cd /usr/local/hadoop-${HADOOP_VERSION} && ln -s hadoop-core-${HADOOP_VERSION}.jar hadoop-core.jar
 
 # Bundle and upload image
 cd ~root

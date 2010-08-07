@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
+#FIXME: replace this shell script with a more
+# declarative statement of what we want
+# the just-started zookeeper's setup to look like,
+# using Whirr, Chef, Puppet, or some combination thereof.
+set -x
 MASTER_HOST=$1
 ZOOKEEPER_QUORUM=$2
 NUM_SLAVES=$3
 EXTRA_PACKAGES=$4
+LOG_SETTING=$5
+export JAVA_HOME=/usr/local/jdk1.6.0_20
+ln -s $JAVA_HOME /usr/local/jdk
 SECURITY_GROUPS=`wget -q -O - http://169.254.169.254/latest/meta-data/security-groups`
 IS_MASTER=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-master$"); if (a) print "true"; else print "false"; }'`
 IS_AUX=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-aux$"); if (a) print "true"; else print "false"; }'`
@@ -100,7 +108,8 @@ cat > /etc/krb5.conf <<EOF
  default_realm = HADOOP.LOCALDOMAIN
  dns_lookup_realm = false
  dns_lookup_kdc = false
- ticket_lifetime = 24h
+ ticket_lifetime = 1d
+ renew_lifetime = 7d
  forwardable = yes
  proxiable = yes
  udp_preference_limit = 1
@@ -502,10 +511,10 @@ ln -s $HADOOP_HOME/conf/hdfs-site.xml $HBASE_HOME/conf/
 ln -s $HADOOP_HOME/conf/mapred-site.xml $HBASE_HOME/conf/
 cat >> $HBASE_HOME/conf/hbase-env.sh <<EOF
 export JAVA_HOME=/usr/local/jdk
-export HBASE_MASTER_OPTS="-Xmx1000m -XX:+UseConcMarkSweepGC -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-master-gc.log"
-export HBASE_REGIONSERVER_OPTS="-Xmx4000m -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=88 -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-regionserver-gc.log"
+export HBASE_MASTER_OPTS="-Xms1000m -Xmx1000m -XX:+UseConcMarkSweepGC -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-master-gc.log"
+export HBASE_REGIONSERVER_OPTS="-Xms4000m -Xmx4000m -XX:+UseConcMarkSweepGC -XX:CMSInitiatingOccupancyFraction=80 -XX:NewSize=128m -XX:MaxNewSize=128m -XX:+AggressiveOpts -verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -Xloggc:/mnt/hbase/logs/hbase-regionserver-gc.log"
 EOF
-sed -i -e 's/hadoop.hbase=DEBUG/hadoop.hbase=INFO/g' \
+sed -i -e "s/hadoop.hbase=DEBUG/hadoop.hbase=$LOG_SETTING/g" \
     $HBASE_HOME/conf/log4j.properties
 cat > $HBASE_HOME/conf/hadoop-metrics.properties <<EOF
 dfs.class=org.apache.hadoop.metrics.ganglia.GangliaContext
@@ -521,7 +530,6 @@ EOF
 mkdir -p /mnt/hadoop/logs /mnt/hbase/logs
 chmod 777 /mnt/hadoop/logs
 if [ "$IS_MASTER" = "true" ]; then
-  # only format on first boot
   [ ! -e /mnt/hadoop/dfs/name ] && "$HADOOP_HOME"/bin/hadoop namenode -format
   "$HADOOP_HOME"/bin/hadoop-daemon.sh start namenode
   "$HADOOP_HOME"/bin/hadoop-daemon.sh start jobtracker
