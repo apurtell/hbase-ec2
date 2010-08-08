@@ -403,6 +403,7 @@ module Hadoop
         :zk_arch => "x86_64",
         :master_arch => "x86_64",
         :slave_arch => "x86_64",
+        :key_name => "root",
         :debug_level => @@debug_level,
         :validate_images => true,
         :security_group_prefix => "hcluster",
@@ -513,8 +514,9 @@ module Hadoop
       @num_regionservers = options[:num_regionservers]
       @num_zookeepers = options[:num_zookeepers]
       @launch_aux = options[:launch_aux]
+      @key_name = options[:key_name]
       @debug_level = options[:debug_level]
-      
+
       @@clusters.push self
       
       @zks = []
@@ -1013,6 +1015,7 @@ module Hadoop
       options[:security_group] = @zk_security_group
       options[:instance_type] = @zk_instance_type
       options[:availability_zone] = @zone
+      options[:key_name] = @key_name
       @zks = HCluster.do_launch(options,"zk",lambda{|zks|setup_zookeepers(zks,
                                                                           options[:stdout_handler],
                                                                           options[:stderr_handler],
@@ -1041,6 +1044,7 @@ module Hadoop
       options[:security_group] = @master_security_group
       options[:instance_type] = @master_instance_type
       options[:availability_zone] = @zone
+      options[:key_name] = @key_name
 
       @master = HCluster.do_launch(options,"master",lambda{|instances| setup_master(instances[0],
                                                                                     options[:stdout_handler],options[:stderr_handler],
@@ -1062,6 +1066,7 @@ module Hadoop
       options[:security_group] = @rs_security_group
       options[:instance_type] = @rs_instance_type
       options[:availability_zone] = @zone
+      options[:key_name] = @key_name
       @slaves = HCluster.do_launch(options,"rs",lambda{|instances|setup_slaves(instances,
                                                                                options[:stdout_handler],
                                                                                options[:stderr_handler],
