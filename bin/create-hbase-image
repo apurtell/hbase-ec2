@@ -23,8 +23,6 @@
 # the just-started zookeeper's setup to look like,
 # using Whirr, Chef, Puppet, or some combination thereof.
 
-set -x
-
 # allow override of SLAVE_INSTANCE_TYPE from the command line 
 [ ! -z $1 ] && SLAVE_INSTANCE_TYPE=$1
 
