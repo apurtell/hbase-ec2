@@ -34,7 +34,7 @@ EC2_CERT=
 EC2_ROOT_SSH_KEY=
 
 # The version of HBase to use.
-HBASE_VERSION=0.20.4
+HBASE_VERSION=0.20.6
 
 # The version of Hadoop to use.
 HADOOP_VERSION=0.20.2
